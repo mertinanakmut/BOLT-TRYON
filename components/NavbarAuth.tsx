@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import LogoutButton from "@/components/LogoutButton";
-import { User } from "@supabase/supabase-js";
+import Link from 'next/link';
+import { LogoutButton } from '@/components/LogoutButton';
+import { User } from '@supabase/supabase-js';
 
 type Props = {
   user: User | null;
