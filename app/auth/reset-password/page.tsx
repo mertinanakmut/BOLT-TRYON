@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -16,16 +16,24 @@ const PASSWORD_REQUIREMENTS = [
   { label: 'One lowercase letter', regex: /[a-z]/ },
 ];
 
-export default function RegisterPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [validSession, setValidSession] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setValidSession(!!data.session);
+    };
+    checkSession();
+  }, [supabase]);
 
   const validatePassword = (pwd: string) => {
     return PASSWORD_REQUIREMENTS.map((req) => ({
@@ -54,12 +62,8 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      const { error } = await supabase.auth.updateUser({
+        password: password,
       });
 
       if (error) {
@@ -81,6 +85,34 @@ export default function RegisterPage() {
     }
   };
 
+  if (validSession === null) {
+    return (
+      <div className="w-full max-w-md space-y-6 text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground">Verifying reset link...</p>
+      </div>
+    );
+  }
+
+  if (validSession === false) {
+    return (
+      <div className="w-full max-w-md space-y-6 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+          <XCircle className="h-6 w-6 text-red-600" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold">Invalid or expired link</h1>
+          <p className="text-muted-foreground">
+            This password reset link is invalid or has expired.
+          </p>
+        </div>
+        <Link href="/auth/forgot-password">
+          <Button className="w-full">Request new reset link</Button>
+        </Link>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="w-full max-w-md space-y-6 text-center">
@@ -88,9 +120,9 @@ export default function RegisterPage() {
           <CheckCircle2 className="h-6 w-6 text-green-600" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Account created!</h1>
+          <h1 className="text-2xl font-bold">Password reset!</h1>
           <p className="text-muted-foreground">
-            Your account has been created successfully. Redirecting...
+            Your password has been successfully reset. Redirecting...
           </p>
         </div>
       </div>
@@ -100,28 +132,15 @@ export default function RegisterPage() {
   return (
     <div className="w-full max-w-md space-y-6">
       <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Reset password</h1>
         <p className="text-muted-foreground">
-          Get started with your virtual try-on experience
+          Enter your new password below
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">New Password</Label>
           <Input
             id="password"
             type="password"
@@ -154,7 +173,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Label htmlFor="confirmPassword">Confirm New Password</Label>
           <Input
             id="confirmPassword"
             type="password"
@@ -180,22 +199,13 @@ export default function RegisterPage() {
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating account...
+              Resetting password...
             </>
           ) : (
-            'Create account'
+            'Reset password'
           )}
         </Button>
       </form>
-
-      <div className="text-center text-sm">
-        <span className="text-muted-foreground">
-          Already have an account?{' '}
-        </span>
-        <Link href="/auth/login" className="text-primary hover:underline">
-          Sign in
-        </Link>
-      </div>
     </div>
   );
 }
