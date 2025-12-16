@@ -11,22 +11,24 @@ declare global {
   }
 }
 
-// create (or reuse) a single Supabase client instance for the whole runtime
-function createSingletonClient(): SupabaseClient {
+// lazy singleton holder
+let supabaseInstance: SupabaseClient | null = null;
+
+function initSupabase(): SupabaseClient {
+  if (supabaseInstance) return supabaseInstance;
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY (or their SUPABASE_* fallbacks)');
   }
 
   if (typeof window !== 'undefined') {
     if (!window.__supabase) {
       window.__supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-          persistSession: true,
-          detectSessionInUrl: false
-        }
+        auth: { persistSession: true, detectSessionInUrl: false }
       });
     }
-    return window.__supabase;
+    supabaseInstance = window.__supabase;
+    return supabaseInstance;
   }
 
   if (!(global as any).__supabaseServer) {
@@ -34,14 +36,13 @@ function createSingletonClient(): SupabaseClient {
       auth: { persistSession: false }
     });
   }
-  return (global as any).__supabaseServer as SupabaseClient;
+  supabaseInstance = (global as any).__supabaseServer as SupabaseClient;
+  return supabaseInstance;
 }
-
-// module-level singleton instance
-const supabase = createSingletonClient();
 
 export function getSupabase(): SupabaseClient {
-  return supabase;
+  return initSupabase();
 }
 
-export default supabase;
+// keep default export compatible with previous usage (call to getSupabase required to obtain instance)
+export default getSupabase;
