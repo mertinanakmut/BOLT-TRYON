@@ -11,7 +11,8 @@ declare global {
   }
 }
 
-export function getSupabase(): SupabaseClient {
+// create (or reuse) a single Supabase client instance for the whole runtime
+function createSingletonClient(): SupabaseClient {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
@@ -28,7 +29,6 @@ export function getSupabase(): SupabaseClient {
     return window.__supabase;
   }
 
-  // server-side singleton to avoid multiple instances during SSR
   if (!(global as any).__supabaseServer) {
     (global as any).__supabaseServer = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false }
@@ -36,3 +36,12 @@ export function getSupabase(): SupabaseClient {
   }
   return (global as any).__supabaseServer as SupabaseClient;
 }
+
+// module-level singleton instance
+const supabase = createSingletonClient();
+
+export function getSupabase(): SupabaseClient {
+  return supabase;
+}
+
+export default supabase;
