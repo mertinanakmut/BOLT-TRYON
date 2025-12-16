@@ -1,15 +1,12 @@
-import { ReactNode } from 'react';
-
+// components/Card.tsx
 interface CardProps {
-  children: ReactNode;
+  children: React.ReactNode;
   className?: string;
 }
 
 export function Card({ children, className = '' }: CardProps) {
   return (
-    <div
-      className={`backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl shadow-2xl ${className}`}
-    >
+    <div className={`bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm ${className}`}>
       {children}
     </div>
   );

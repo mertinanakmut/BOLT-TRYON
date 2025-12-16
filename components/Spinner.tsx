@@ -1,20 +1,18 @@
-import { Loader2 } from 'lucide-react';
-
+// components/Spinner.tsx
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
-  className?: string;
 }
 
-export function Spinner({ size = 'md', className = '' }: SpinnerProps) {
+export function Spinner({ size = 'md' }: SpinnerProps) {
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-6 h-6',
-    lg: 'w-8 h-8',
+    lg: 'w-8 h-8'
   };
 
   return (
-    <Loader2
-      className={`animate-spin text-blue-400 ${sizeClasses[size]} ${className}`}
-    />
+    <div className={`animate-spin rounded-full border-2 border-current border-t-transparent ${sizeClasses[size]}`}>
+      <span className="sr-only">Loading...</span>
+    </div>
   );
 }
