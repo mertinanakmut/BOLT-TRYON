@@ -25,23 +25,28 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setError(error.message);
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      // ✅ DEBUG (istersen sonra silebilirsin)
+      console.log('LOGIN OK', data);
+
+      // ✅ LOGIN BAŞARILI → YÖNLENDİR
+      router.push('/');
+      router.refresh();
+    } catch (err) {
+      setError('An unexpected error occurred');
       setLoading(false);
-      return;
     }
-
-    // ✅ DEBUG (istersen sonra silebilirsin)
-    console.log('LOGIN OK', data);
-
-    // ✅ LOGIN BAŞARILI → YÖNLENDİR
-    router.push('/');
-    router.refresh();
   };
 
   return (
@@ -58,12 +63,15 @@ export default function LoginPage() {
           <Label htmlFor="email">Email</Label>
           <Input
             id="email"
+            name="email"
             type="email"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={loading}
+            autoComplete="username"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
 
@@ -79,6 +87,7 @@ export default function LoginPage() {
           </div>
           <Input
             id="password"
+            name="password"
             type="password"
             autoComplete="current-password"
             placeholder="••••••••"
@@ -86,6 +95,7 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={loading}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
 
