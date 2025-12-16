@@ -33,31 +33,39 @@ async function processFile(filePath) {
     if (filePath.endsWith('.d.ts')) return;
 
     // quick test: contains @supabase import
-    const supabaseImport = /@supabase(?:\/|['"])/.test(src) || /from\s+['"]@supabase(?:\/|['"])/.test(src);
+    // match any string like '@supabase' or '@supabase/...' inside quotes
+    const supabaseImport = /['"]@supabase(?:\/[^'"]*)?['"]/.test(src);
     if (!supabaseImport) return;
-
+    
     // skip client components that explicitly declare "use client" at top
     const trimmed = src.trimStart();
-    if (trimmed.startsWith(`'use client'`) || trimmed.startsWith(`"use client"`)) {
+    // handle "use client" with optional semicolon and either quote type
+    if (/^(['"])use client\1/.test(trimmed)) {
       console.log(`skip (use client): ${rel}`);
       return;
     }
-
+    
     // already has runtime export?
-    if (/export\s+const\s+runtime\s*=\s*['"]nodejs['"]/.test(src)) {
-      console.log(`already set: ${rel}`);
+    // skip if any runtime export is already present (nodejs/edge/...)
+    if (/export\s+const\s+runtime\s*=\s*['"][^'"]+['"]/.test(src)) {
+      console.log(`already has runtime: ${rel}`);
       return;
     }
-
+    
     // prepend runtime export (preserve shebang if present)
     let newSrc = src;
     if (src.startsWith('#!')) {
       const idx = src.indexOf('\n');
-      newSrc = src.slice(0, idx + 1) + `export const runtime = 'nodejs';\n` + src.slice(idx + 1);
+      if (idx === -1) {
+        // single-line shebang file
+        newSrc = src + `\nexport const runtime = 'nodejs';\n`;
+      } else {
+        newSrc = src.slice(0, idx + 1) + `export const runtime = 'nodejs';\n` + src.slice(idx + 1);
+      }
     } else {
       newSrc = `export const runtime = 'nodejs';\n` + src;
     }
-
+    
     await fs.writeFile(filePath, newSrc, 'utf8');
     console.log(`patched: ${rel}`);
   } catch (err) {
