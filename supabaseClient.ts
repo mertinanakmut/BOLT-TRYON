@@ -19,7 +19,7 @@ export function getSupabaseClient(): SupabaseClient {
 		return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 	}
 
-	// Browser: reuse or create a single global client
+	// Browser: reuse a single client instance stored on globalThis
 	if (!globalThis.__supabase_client__) {
 		globalThis.__supabase_client__ = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 	}
