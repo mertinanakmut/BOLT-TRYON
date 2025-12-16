@@ -1,24 +1,26 @@
+// components/LogoutButton.tsx
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client'; // DÜZELTME: Doğrudan supabase import et
 
 export function LogoutButton() {
   const router = useRouter();
-  const supabase = createClient();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push('/auth/login');
     router.refresh();
+    router.push('/auth/login');
   };
 
   return (
-    <Button variant="outline" size="sm" onClick={handleLogout}>
-      <LogOut className="mr-2 h-4 w-4" />
-      Sign out
+    <Button
+      variant="outline"
+      onClick={handleLogout}
+      className="border-white/20 text-white hover:bg-white/10"
+    >
+      Logout
     </Button>
   );
 }
