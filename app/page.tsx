@@ -75,102 +75,91 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Navigation Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-8">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Virtual Try-On Studio</h1>
-                <p className="text-sm text-gray-400">Powered by Fal AI</p>
-              </div>
-              
-              <nav className="hidden md:flex space-x-6">
-                <button
-                  onClick={() => setActiveTab('generate')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === 'generate'
-                      ? 'bg-white text-black'
-                      : 'hover:bg-white/10'
-                  }`}
-                >
-                  Generate
-                </button>
-                <button
-                  onClick={() => setActiveTab('history')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === 'history'
-                      ? 'bg-white text-black'
-                      : 'hover:bg-white/10'
-                  }`}
-                >
-                  History
-                </button>
-                <button
-                  onClick={() => setActiveTab('compare')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === 'compare'
-                      ? 'bg-white text-black'
-                      : 'hover:bg-white/10'
-                  }`}
-                >
-                  Compare
-                </button>
-              </nav>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <div className="hidden md:block text-right">
-                <p className="text-sm text-gray-400">Logged in as</p>
-                <p className="font-medium">{user.email}</p>
-              </div>
-              
-              <Card className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500">
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg">⭐</span>
-                  <span className="font-bold">{credits}</span>
-                  <span className="text-sm opacity-90">credits left</span>
-                </div>
-              </Card>
-              
-              <LogoutButton />
-            </div>
-          </div>
-
-          {/* Mobile Navigation */}
-          <div className="md:hidden flex space-x-4 mt-4 overflow-x-auto pb-2">
-            <button
-              onClick={() => setActiveTab('generate')}
-              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap ${
-                activeTab === 'generate'
-                  ? 'bg-white text-black'
-                  : 'bg-white/10'
-              }`}
-            >
-              Generate
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap ${
-                activeTab === 'history'
-                  ? 'bg-white text-black'
-                  : 'bg-white/10'
-              }`}
-            >
-              History
-            </button>
-            <button
-              onClick={() => setActiveTab('compare')}
-              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap ${
-                activeTab === 'compare'
-                  ? 'bg-white text-black'
-                  : 'bg-white/10'
-              }`}
-            >
-              Compare
-            </button>
-          </div>
+      // app/page.tsx - SADECE HEADER KISMI GÜNCELLENİYOR
+<header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+    <div className="flex items-center justify-between">
+      {/* Sol taraf */}
+      <div className="flex items-center space-x-4 sm:space-x-8">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Virtual Try-On Studio</h1>
+          <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">Powered by Fal AI</p>
         </div>
-      </header>
+        
+        <nav className="hidden md:flex space-x-4">
+          {/* ... tab butonları aynı ... */}
+        </nav>
+      </div>
+
+      {/* Sağ taraf - LOGOUT BUTONU BURADA */}
+      <div className="flex items-center space-x-2 sm:space-x-4">
+        {/* Kredi bilgisi - MOBİL'DE GİZLİ */}
+        <div className="hidden sm:block">
+          <Card className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500">
+            <div className="flex items-center space-x-1.5">
+              <span className="text-sm">⭐</span>
+              <span className="font-bold text-sm">{credits}</span>
+              <span className="text-xs opacity-90">credits</span>
+            </div>
+          </Card>
+        </div>
+        
+        {/* Email bilgisi - MOBİL'DE GİZLİ */}
+        <div className="hidden md:block text-right">
+          <p className="text-xs text-gray-400 truncate max-w-[150px]">Logged in as</p>
+          <p className="text-sm font-medium truncate max-w-[150px]">{user.email}</p>
+        </div>
+        
+        {/* LOGOUT BUTONU - HER ZAMAN GÖRÜNÜR */}
+        <LogoutButton />
+      </div>
+    </div>
+
+    {/* Mobile Navigation */}
+    <div className="md:hidden flex justify-between items-center mt-3">
+      <div className="flex space-x-2 overflow-x-auto pb-1">
+        <button
+          onClick={() => setActiveTab('generate')}
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap flex-1 min-w-[80px] text-center ${
+            activeTab === 'generate'
+              ? 'bg-white text-black'
+              : 'bg-white/10'
+          }`}
+        >
+          Generate
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap flex-1 min-w-[80px] text-center ${
+            activeTab === 'history'
+              ? 'bg-white text-black'
+              : 'bg-white/10'
+          }`}
+        >
+          History
+        </button>
+        <button
+          onClick={() => setActiveTab('compare')}
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap flex-1 min-w-[80px] text-center ${
+            activeTab === 'compare'
+              ? 'bg-white text-black'
+              : 'bg-white/10'
+          }`}
+        >
+          Compare
+        </button>
+      </div>
+      
+      {/* Mobile Kredi Göstergesi */}
+      <div className="ml-2 sm:hidden">
+        <div className="flex items-center px-2 py-1 bg-purple-500/20 rounded">
+          <span className="text-xs mr-1">⭐</span>
+          <span className="font-bold text-xs">{credits}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
 
       {/* Main Content */}
       <main className="pt-32 pb-12 px-4 sm:px-6 lg:px-8">
