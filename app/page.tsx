@@ -3,154 +3,252 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { TryOnClient } from '@/components/TryOnClient';
+import { HistoryGrid } from '@/components/HistoryGrid';
+import { CompareView } from '@/components/CompareView';
+import { Card } from '@/components/Card';
+import { LogoutButton } from '@/components/LogoutButton';
+import { Spinner } from '@/components/Spinner';
 
 export default function HomePage() {
-  const router = useRouter();
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasChecked, setHasChecked] = useState(false); // Yeni: Kontrol edildi mi?
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [credits, setCredits] = useState<number>(5); // Default credits
+  const [activeTab, setActiveTab] = useState<'generate' | 'history' | 'compare'>('generate');
 
   useEffect(() => {
-    // Session kontrolü sadece bir kere yap
-    if (hasChecked) return;
-
-    const checkUser = async () => {
-      console.log('🏠 HomePage: Checking for user session...');
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('❌ HomePage: Session check error:', error);
-        setIsLoading(false);
-        setHasChecked(true);
+      if (session?.user) {
+        setUser(session.user);
+        // Fetch user credits
+        const { data } = await supabase
+          .from('profiles')
+          .select('credits')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (data) {
+          setCredits(data.credits || 5);
+        }
+      } else {
+        window.location.href = '/auth/login';
         return;
       }
-
-      console.log('📋 HomePage: Session found:', !!session);
-
-      if (session?.user) {
-        console.log('✅ HomePage: User logged in:', session.user.email);
-        setUserEmail(session.user.email);
-      } else {
-        console.log('❌ HomePage: No session. Redirecting to login...');
-        // Tek seferlik yönlendirme
-        setHasChecked(true);
-        router.push('/auth/login');
-        return; // Buradan çık, daha fazla render etme
-      }
       
-      setIsLoading(false);
-      setHasChecked(true);
+      setLoading(false);
     };
 
-    checkUser();
-  }, [router, hasChecked]); // hasChecked dependency eklendi
+    checkAuth();
 
-  // Auth state değişikliklerini dinle (sadece giriş/çıkış için)
-  useEffect(() => {
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('🔄 HomePage: Auth state changed:', event);
-        
-        if (event === 'SIGNED_IN' && session) {
-          setUserEmail(session.user?.email || null);
-          setIsLoading(false);
-        }
-        
         if (event === 'SIGNED_OUT') {
-          setUserEmail(null);
-          router.push('/auth/login');
+          window.location.href = '/auth/login';
+        }
+        if (session?.user) {
+          setUser(session.user);
         }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <Spinner size="lg" />
+          <p className="mt-4 text-white">Loading your studio...</p>
         </div>
       </div>
     );
   }
 
-  // Eğer yönlendirildiyse, boş bir div döndür
-  if (!userEmail && hasChecked) {
-    return null;
+  if (!user) {
+    return null; // Will redirect in useEffect
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white shadow rounded-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Home Page</h1>
-          
-          {userEmail ? (
-            <div className="space-y-6">
-              <div className="bg-green-50 border-l-4 border-green-400 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <span className="text-green-400">✅</span>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">
-                      Successfully logged in!
-                    </p>
-                    <p className="mt-1 text-sm text-green-700">
-                      Email: <strong className="font-semibold">{userEmail}</strong>
-                    </p>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-black text-white">
+      {/* Navigation Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-8">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Virtual Try-On Studio</h1>
+                <p className="text-sm text-gray-400">Powered by Fal AI</p>
               </div>
               
-              <div className="border-t border-gray-200 pt-6">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                  Welcome to your dashboard
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  This is your main application page. You can add your content here.
-                </p>
-                
-                <div className="flex space-x-4">
-                  <button
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      // Hard redirect yap (router.push döngüye sebep olabilir)
-                      window.location.href = '/auth/login';
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                  >
-                    Sign Out
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      // Başka bir işlem
-                      console.log('Additional action');
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Another Action
-                  </button>
-                </div>
-              </div>
+              <nav className="hidden md:flex space-x-6">
+                <button
+                  onClick={() => setActiveTab('generate')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    activeTab === 'generate'
+                      ? 'bg-white text-black'
+                      : 'hover:bg-white/10'
+                  }`}
+                >
+                  Generate
+                </button>
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    activeTab === 'history'
+                      ? 'bg-white text-black'
+                      : 'hover:bg-white/10'
+                  }`}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() => setActiveTab('compare')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    activeTab === 'compare'
+                      ? 'bg-white text-black'
+                      : 'hover:bg-white/10'
+                  }`}
+                >
+                  Compare
+                </button>
+              </nav>
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-                <p className="text-yellow-700">
-                  Not authenticated. Redirecting to login page...
+
+            <div className="flex items-center space-x-4">
+              <div className="hidden md:block text-right">
+                <p className="text-sm text-gray-400">Logged in as</p>
+                <p className="font-medium">{user.email}</p>
+              </div>
+              
+              <Card className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500">
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">⭐</span>
+                  <span className="font-bold">{credits}</span>
+                  <span className="text-sm opacity-90">credits left</span>
+                </div>
+              </Card>
+              
+              <LogoutButton />
+            </div>
+          </div>
+
+          {/* Mobile Navigation */}
+          <div className="md:hidden flex space-x-4 mt-4 overflow-x-auto pb-2">
+            <button
+              onClick={() => setActiveTab('generate')}
+              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap ${
+                activeTab === 'generate'
+                  ? 'bg-white text-black'
+                  : 'bg-white/10'
+              }`}
+            >
+              Generate
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap ${
+                activeTab === 'history'
+                  ? 'bg-white text-black'
+                  : 'bg-white/10'
+              }`}
+            >
+              History
+            </button>
+            <button
+              onClick={() => setActiveTab('compare')}
+              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap ${
+                activeTab === 'compare'
+                  ? 'bg-white text-black'
+                  : 'bg-white/10'
+              }`}
+            >
+              Compare
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="pt-32 pb-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Tab Content */}
+          {activeTab === 'generate' && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold mb-3">Create New Try-On</h2>
+                <p className="text-gray-400 max-w-2xl mx-auto">
+                  Upload a model photo and a garment image to generate a virtual try-on.
+                  Each generation uses 1 credit.
                 </p>
               </div>
+              
+              <TryOnClient />
             </div>
           )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold mb-3">Generation History</h2>
+                <p className="text-gray-400">
+                  View your previous virtual try-on generations
+                </p>
+              </div>
+              
+              <HistoryGrid userId={user.id} />
+            </div>
+          )}
+
+          {activeTab === 'compare' && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold mb-3">Compare Results</h2>
+                <p className="text-gray-400">
+                  Compare different try-on results side by side
+                </p>
+              </div>
+              
+              <CompareView userId={user.id} />
+            </div>
+          )}
+
+          {/* Credits Info & Upgrade */}
+          <div className="mt-12 border-t border-white/10 pt-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Need more credits?</h3>
+                <p className="text-gray-400">
+                  Upgrade your plan for unlimited generations
+                </p>
+              </div>
+              
+              <a
+                href="/upgrade"
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 
+                         rounded-lg font-semibold hover:opacity-90 transition-opacity
+                         inline-flex items-center space-x-2"
+              >
+                <span>⚡</span>
+                <span>Upgrade Plan</span>
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 py-6 px-4">
+        <div className="max-w-7xl mx-auto text-center text-gray-500 text-sm">
+          <p>Virtual Try-On Studio • Powered by Fal AI • Made with Next.js & Supabase</p>
+          <p className="mt-2">
+            Need help? Contact support@example.com
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
