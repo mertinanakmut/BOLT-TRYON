@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+
+export const dynamic = 'force-dynamic';
 
 const PASSWORD_REQUIREMENTS = [
   { label: 'At least 8 characters', regex: /.{8,}/ },
@@ -18,7 +20,9 @@ const PASSWORD_REQUIREMENTS = [
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const supabase = createClient();
+
+  // ✅ build-safe Supabase
+  const supabase = getSupabase();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,11 +31,17 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [validSession, setValidSession] = useState<boolean | null>(null);
 
+  // ✅ build / prerender sırasında crash olmasın
+  if (!supabase) {
+    return null;
+  }
+
   useEffect(() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       setValidSession(!!data.session);
     };
+
     checkSession();
   }, [supabase]);
 
@@ -63,7 +73,7 @@ export default function ResetPasswordPage() {
 
     try {
       const { error } = await supabase.auth.updateUser({
-        password: password,
+        password,
       });
 
       if (error) {
@@ -79,7 +89,7 @@ export default function ResetPasswordPage() {
         router.push('/');
         router.refresh();
       }, 2000);
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred');
       setLoading(false);
     }

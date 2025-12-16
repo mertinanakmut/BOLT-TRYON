@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+
+export const dynamic = 'force-dynamic';
 
 const PASSWORD_REQUIREMENTS = [
   { label: 'At least 8 characters', regex: /.{8,}/ },
@@ -18,7 +20,9 @@ const PASSWORD_REQUIREMENTS = [
 
 export default function RegisterPage() {
   const router = useRouter();
-  const supabase = createClient();
+
+  // ✅ build-safe Supabase
+  const supabase = getSupabase();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,6 +30,11 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // ✅ build / prerender sırasında crash olmasın
+  if (!supabase) {
+    return null;
+  }
 
   const validatePassword = (pwd: string) => {
     return PASSWORD_REQUIREMENTS.map((req) => ({
@@ -75,7 +84,7 @@ export default function RegisterPage() {
         router.push('/');
         router.refresh();
       }, 2000);
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred');
       setLoading(false);
     }

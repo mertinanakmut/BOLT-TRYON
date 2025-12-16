@@ -2,20 +2,28 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Mail, ArrowLeft } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default function ForgotPasswordPage() {
-  const supabase = createClient();
+  // ✅ build-safe Supabase
+  const supabase = getSupabase();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // ✅ build / prerender sırasında crash olmasın
+  if (!supabase) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +43,7 @@ export default function ForgotPasswordPage() {
 
       setSuccess(true);
       setLoading(false);
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred');
       setLoading(false);
     }
