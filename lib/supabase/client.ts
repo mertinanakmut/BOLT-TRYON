@@ -1,31 +1,28 @@
-import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Debug için environment değişkenlerini kontrol et
+console.log('🟡 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+console.log('🟡 Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __supabase_client__: SupabaseClient | undefined;
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
 }
 
-// ✅ TEK client – browser singleton
-export const supabase: SupabaseClient =
-  globalThis.__supabase_client__ ??
-  (globalThis.__supabase_client__ = createSupabaseClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY
-  ));
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY');
+}
 
-// ❌ Browser’da yeni client üretme
-export function createClient() {
-  if (typeof window !== 'undefined') {
-    return supabase;
+// Supabase client'ı oluştur
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      flowType: 'pkce', // PKCE flow kullan (daha güvenli)
+    },
   }
-  // server tarafında güvenli
-  return createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
-
-// Geri uyumluluk
-export const getSupabase = () => supabase;
-
-export default supabase;
+);

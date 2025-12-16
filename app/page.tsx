@@ -1,18 +1,31 @@
-export const runtime = 'nodejs';
+'use client';
 
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { TryOnClient } from '@/components/TryOnClient';
+import { supabase } from '@/lib/supabase/client';
+import { useEffect } from 'react';
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default function HomePage() {
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Home Page Session:', session);
+      console.log('Home Page User:', session?.user);
+    };
+    
+    checkAuth();
+    
+    // Auth state değişikliklerini dinle
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('Auth State Changed:', event, session);
+      }
+    );
+    
+    return () => subscription.unsubscribe();
+  }, []);
 
-  if (!user) {
-    redirect('/auth/login');
-  }
-
-  return <TryOnClient />;
+  return (
+    <div>
+      <h1>Home Page</h1>
+    </div>
+  );
 }
