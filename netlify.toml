@@ -1,8 +1,7 @@
 [build]
-  publish = "dist"
   command = "npm run build"
+  # Let the Netlify Next.js plugin handle publish output (do not point to "dist" or "index.html")
+  publish = "."
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
