@@ -31,18 +31,16 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [validSession, setValidSession] = useState<boolean | null>(null);
 
-  // ✅ build / prerender sırasında crash olmasın
-  if (!supabase) {
-    return null;
-  }
-
+  // Call hooks unconditionally. Inside the effect, guard access to `supabase`
   useEffect(() => {
+    if (!supabase) return;
+
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       setValidSession(!!data.session);
     };
 
-    checkSession();
+    void checkSession();
   }, [supabase]);
 
   const validatePassword = (pwd: string) => {
