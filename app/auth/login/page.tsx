@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSupabase } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,42 +15,33 @@ export const dynamic = 'force-dynamic';
 export default function LoginPage() {
   const router = useRouter();
 
-  // ✅ build-safe Supabase
-  const supabase = getSupabase();
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // ✅ build / prerender sırasında crash olmasın
-  if (!supabase) {
-    return null;
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      router.push('/');
-      router.refresh();
-    } catch {
-      setError('An unexpected error occurred');
+    if (error) {
+      setError(error.message);
       setLoading(false);
+      return;
     }
+
+    // ✅ DEBUG (istersen sonra silebilirsin)
+    console.log('LOGIN OK', data);
+
+    // ✅ LOGIN BAŞARILI → YÖNLENDİR
+    router.push('/');
+    router.refresh();
   };
 
   return (
@@ -89,6 +80,7 @@ export default function LoginPage() {
           <Input
             id="password"
             type="password"
+            autoComplete="current-password"
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
