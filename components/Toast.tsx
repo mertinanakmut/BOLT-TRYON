@@ -1,6 +1,7 @@
+// components/Toast.tsx - Optimize edilmiş versiyon
 'use client';
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode, useMemo } from 'react';
 import { CheckCircle, XCircle, X } from 'lucide-react';
 
 interface Toast {
@@ -18,7 +19,13 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error('useToast must be used within ToastProvider');
+    console.warn('useToast was called outside ToastProvider. Make sure ToastProvider is in your layout.');
+    // Fallback fonksiyon - hata vermek yerine çalışır
+    return {
+      showToast: (message: string, type: 'success' | 'error') => {
+        console.log(`Toast (fallback): ${message}`, type);
+      }
+    };
   }
   return context;
 }
@@ -35,18 +42,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, 5000);
   }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({ showToast }), [showToast]);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md">
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-start gap-3 p-4 rounded-lg shadow-lg backdrop-blur-md border transition-all animate-in slide-in-from-right ${
+            className={`flex items-start gap-3 p-4 rounded-lg shadow-lg backdrop-blur-md border transition-all animate-in slide-in-from-right pointer-events-auto ${
               toast.type === 'success'
                 ? 'bg-green-500/10 border-green-500/20 text-green-100'
                 : 'bg-red-500/10 border-red-500/20 text-red-100'
