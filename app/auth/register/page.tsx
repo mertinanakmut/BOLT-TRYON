@@ -1,209 +1,261 @@
+// app/auth/register/page.tsx - DÜZELTİLMİŞ VERSİYON
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSupabase } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
-
-export const dynamic = 'force-dynamic';
-
-const PASSWORD_REQUIREMENTS = [
-  { label: 'At least 8 characters', regex: /.{8,}/ },
-  { label: 'One uppercase letter', regex: /[A-Z]/ },
-  { label: 'One lowercase letter', regex: /[a-z]/ },
-];
+import { useRouter } from 'next/navigation';
+import { Mail, Lock, User, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { createClient } from '@/lib/supabase-client'; // DÜZELTİLDİ: createClient yerine createClient
 
 export default function RegisterPage() {
+  const { t } = useLanguage();
   const router = useRouter();
-
-  // ✅ build-safe Supabase
-  const supabase = getSupabase();
-
+  
+  // DÜZELTİLDİ: createClient yerine createClient
+  const supabase = createClient();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // ✅ build / prerender sırasında crash olmasın
-  if (!supabase) {
-    return null;
-  }
-
-  const validatePassword = (pwd: string) => {
-    return PASSWORD_REQUIREMENTS.map((req) => ({
-      ...req,
-      met: req.regex.test(pwd),
-    }));
-  };
-
-  const passwordChecks = validatePassword(password);
-  const isPasswordValid = passwordChecks.every((check) => check.met);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     setError(null);
 
-    if (!isPasswordValid) {
-      setError('Password does not meet requirements');
-      return;
-    }
-
+    // Validate passwords match
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
+    // Validate password strength
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          data: {
+            full_name: fullName,
+          },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
+        throw error;
       }
 
-      setSuccess(true);
-      setLoading(false);
+      if (data.user) {
+        setSuccess(true);
+        
+        // Create user profile in profiles table
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            full_name: fullName,
+            credits: 15, // Initial credits
+            plan: 'free',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
 
-      setTimeout(() => {
-        router.push('/');
-        router.refresh();
-      }, 2000);
-    } catch {
-      setError('An unexpected error occurred');
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+        }
+
+        // Redirect after 3 seconds
+        setTimeout(() => {
+          router.push('/auth/login');
+        }, 3000);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className="w-full max-w-md space-y-6 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-          <CheckCircle2 className="h-6 w-6 text-green-600" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Account created!</h1>
-          <p className="text-muted-foreground">
-            Your account has been created successfully. Redirecting...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-md space-y-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
-        <p className="text-muted-foreground">
-          Get started with your virtual try-on experience
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl p-8">
+          {/* Back Button */}
+          <Link
+            href="/auth/login"
+            className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 mb-6 group"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
+            Back to login
+          </Link>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-500/20 dark:to-purple-500/20 flex items-center justify-center mb-4">
+              <User className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Create an account
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Start your virtual try-on journey with AI-powered fashion
+            </p>
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
-          {password && (
-            <div className="space-y-1 rounded-md border p-3">
-              {passwordChecks.map((check, index) => (
-                <div key={index} className="flex items-center gap-2 text-sm">
-                  {check.met ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <span
-                    className={
-                      check.met ? 'text-green-600' : 'text-muted-foreground'
-                    }
-                  >
-                    {check.label}
-                  </span>
+          {/* Success Message */}
+          {success && (
+            <div className="mb-6 p-4 rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20">
+              <div className="flex items-center">
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mr-3" />
+                <div>
+                  <p className="text-green-800 dark:text-green-300 font-medium">
+                    Registration successful!
+                  </p>
+                  <p className="text-green-700 dark:text-green-400 text-sm mt-1">
+                    Please check your email to confirm your account. Redirecting to login...
+                  </p>
                 </div>
-              ))}
+              </div>
             </div>
           )}
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
-          <Input
-            id="confirmPassword"
-            type="password"
-            placeholder="••••••••"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={loading || !isPasswordValid}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating account...
-            </>
-          ) : (
-            'Create account'
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3" />
+                <p className="text-red-800 dark:text-red-300">{error}</p>
+              </div>
+            </div>
           )}
-        </Button>
-      </form>
 
-      <div className="text-center text-sm">
-        <span className="text-muted-foreground">
-          Already have an account?{' '}
-        </span>
-        <Link href="/auth/login" className="text-primary hover:underline">
-          Sign in
-        </Link>
+          {/* Form */}
+          <form onSubmit={handleRegister} className="space-y-5">
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Full Name
+              </label>
+              <input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="John Doe"
+                disabled={loading || success}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="you@example.com"
+                  disabled={loading || success}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="At least 6 characters"
+                  disabled={loading || success}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="Confirm your password"
+                  disabled={loading || success}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || success}
+              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Creating account...
+                </div>
+              ) : (
+                'Create account'
+              )}
+            </button>
+          </form>
+
+          {/* Terms & Privacy */}
+          <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
+            By signing up, you agree to our{' '}
+            <a href="#" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="#" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Privacy Policy
+            </a>
+          </p>
+
+          {/* Login Link */}
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
+            <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+              Already have an account?{' '}
+              <Link href="/auth/login" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
