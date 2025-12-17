@@ -142,7 +142,7 @@ export const ERROR_CODES = {
 
 // Error Messages
 export const ERRORS = {
-  AUTH: {
+   AUTH: {
     UNAUTHORIZED: 'Bu işlem için giriş yapmalısınız',
     INVALID_CREDENTIALS: 'Email veya şifre hatalı',
     SESSION_EXPIRED: 'Oturumunuz sona erdi, lütfen tekrar giriş yapın',
@@ -173,6 +173,11 @@ export const ERRORS = {
   },
   FAL: {
     API_KEY_MISSING: 'FAL AI API anahtarı eksik',
+    // PROCESSING bölümünü ekleyin
+    PROCESSING: {
+      FAILED: 'AI işleme başarısız oldu. Lütfen tekrar deneyin.',
+    },
+    // Veya mevcut sabiti olduğu gibi bırakın
     PROCESSING_FAILED: 'AI işleme başarısız oldu. Lütfen tekrar deneyin.',
     INVALID_RESPONSE: 'AI servisinden geçersiz yanıt alındı',
     QUOTA_EXCEEDED: 'API kotası aşıldı. Daha sonra tekrar deneyin veya kredi ekleyin.',
@@ -182,20 +187,6 @@ export const ERRORS = {
     INSUFFICIENT_CREDITS: 'AI servisi için yeterli kredi yok',
     TIMEOUT: 'AI işlemi çok uzun sürdü',
     IMAGE_PROCESSING_FAILED: 'Görsel işleme başarısız oldu',
-  },
-  DATABASE: {
-    CONNECTION_FAILED: 'Veritabanı bağlantısı başarısız',
-    QUERY_FAILED: 'Veritabanı sorgusu başarısız',
-    CONSTRAINT_VIOLATION: 'Veritabanı kısıtlaması ihlal edildi',
-    TRANSACTION_FAILED: 'Veritabanı işlemi başarısız',
-    LOCK_TIMEOUT: 'Veritabanı kilidi zaman aşımı',
-  },
-  FILE: {
-    UPLOAD_FAILED: 'Dosya yükleme başarısız',
-    PROCESSING_FAILED: 'Dosya işleme başarısız',
-    STORAGE_FULL: 'Depolama alanı dolu',
-    INVALID_TYPE: 'Geçersiz dosya türü',
-    CORRUPTED: 'Dosya bozuk',
   },
 } as const;
 

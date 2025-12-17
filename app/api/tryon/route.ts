@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - CATCH HATALARI DÜZELTİLMİŞ
+// app/api/tryon/route.ts - TAM DÜZELTİLMİŞ VERSİYON
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -43,32 +43,67 @@ export async function POST(req: NextRequest) {
   console.log(`[${requestId}] Try-on request started`);
   
   try {
-    // 1. Rate Limiting Kontrolü (IP bazlı)
-    const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
-    
-    // 2. Auth kontrolü
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      console.warn(`[${requestId}] Unauthorized try-on attempt from IP: ${ip}`);
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: ERRORS.AUTH.UNAUTHORIZED,
-          code: 'UNAUTHORIZED'
-        }, 
-        { status: STATUS.UNAUTHORIZED }
-      );
+    // DEVTEST MODU - Eğer .env.local'da DEV_TEST_MODE=true ise auth'u bypass et
+    const DEV_TEST_MODE = process.env.DEV_TEST_MODE === 'true';
+    let user: any;
+    let supabase;
+
+    if (DEV_TEST_MODE) {
+      console.log(`[${requestId}] DEV TEST MODE ACTIVE - Bypassing authentication`);
+      
+      // Test için dummy user oluştur
+      user = {
+        id: 'dev-test-user-id-123456',
+        email: 'dev@test.com'
+      };
+      
+      supabase = await createClient();
+      
+      // Test user için profile kontrol et, yoksa oluştur
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('credits, subscription_tier')
+        .eq('id', user.id)
+        .single();
+        
+      if (!existingProfile) {
+        console.log(`[${requestId}] Creating test user profile...`);
+        await supabase.from('profiles').insert({
+          id: user.id,
+          email: user.email,
+          credits: 100,
+          subscription_tier: 'free',
+          created_at: new Date().toISOString()
+        });
+      }
+      
+    } else {
+      // NORMAL MOD - Auth kontrolü
+      supabase = await createClient();
+      const { data: authData, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !authData.user) {
+        const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
+        console.warn(`[${requestId}] Unauthorized try-on attempt from IP: ${ip}`);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: ERRORS.AUTH.UNAUTHORIZED,
+            code: 'UNAUTHORIZED'
+          }, 
+          { status: STATUS.UNAUTHORIZED }
+        );
+      }
+      user = authData.user;
     }
 
-    console.log(`[${requestId}] User authenticated: ${user.id.substring(0, 8)}`);
+    console.log(`[${requestId}] User authenticated: ${user.id.substring(0, 8)} (DEV_TEST_MODE: ${DEV_TEST_MODE})`);
 
     // 3. Input Validation
     let body;
     try {
       body = await req.json();
-    } catch (parseError: any) { // DÜZELTME: any type eklendi
+    } catch (parseError: any) {
       console.error(`[${requestId}] JSON parse error:`, parseError);
       return NextResponse.json(
         { 
@@ -252,15 +287,15 @@ export async function POST(req: NextRequest) {
 
       // FAL AI için payload - FACE-TO-MANY modeli kullanıyoruz
       const falPayload = {
-        model_name: "face-to-many", // Fal AI'nin try-on modeli
+        model_name: "face-to-many",
         model_image: modelImageBase64,
         garment_image: tshirtImageBase64,
-        // Optional parameters - FIXED SYNTAX
+        // Optional parameters
         guidance_scale: options?.guidanceScale || 7.5,
         num_inference_steps: options?.numInferenceSteps || 30,
         seed: options?.seed || Math.floor(Math.random() * 1000000),
         enable_safety_checker: options?.enableSafetyChecker ?? true,
-        sync_mode: true // Sync mode for immediate response
+        sync_mode: true
       };
 
       console.log(`[${requestId}] Calling FAL AI with model: ${falPayload.model_name}`);
@@ -272,15 +307,15 @@ export async function POST(req: NextRequest) {
         sync_mode: falPayload.sync_mode
       });
 
-      // FAL AI API çağrısı - DOĞRU URL VE HEADERS
+      // FAL AI API çağrısı
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.warn(`[${requestId}] FAL AI request timeout (60s)`);
         controller.abort();
-      }, 60000); // 60 saniye timeout
+      }, 60000);
 
       try {
-        // FAL AI endpoint'i
+        // Fal AI endpoint
         const falResponse = await fetch('https://fal.run/fal-ai/face-to-many', {
           method: 'POST',
           headers: {
@@ -298,14 +333,14 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] FAL AI response status: ${falResponse.status}, time: ${responseTime}ms`);
 
         if (!falResponse.ok) {
-          let errorData: any; // DÜZELTME: any type eklendi
+          let errorData: any;
           try {
             errorData = await falResponse.json();
             console.error(`[${requestId}] FAL AI API Error (JSON):`, {
               status: falResponse.status,
               error: errorData
             });
-          } catch (jsonError: any) { // DÜZELTME: any type eklendi
+          } catch (jsonError: any) {
             const errorText = await falResponse.text();
             console.error(`[${requestId}] FAL AI API Error (Text):`, {
               status: falResponse.status,
@@ -320,7 +355,7 @@ export async function POST(req: NextRequest) {
             .update({ credits: profile.credits })
             .eq('id', user.id);
           
-          // Update history as failed
+          // Update history as failed - DÜZELTİLDİ
           await supabase
             .from('tryon_history')
             .update({
@@ -332,27 +367,25 @@ export async function POST(req: NextRequest) {
             .eq('id', historyRecord.id);
 
           // Hata mesajını belirle
-          let userErrorMessage;
+          let userErrorMessage = ERRORS.FAL.PROCESSING.FAILED;
+
           if (falResponse.status === 401) {
             userErrorMessage = 'API authentication failed. Please check API key.';
           } else if (falResponse.status === 402) {
             userErrorMessage = 'Insufficient FAL credits. Please add credits to your FAL account.';
           } else if (falResponse.status === 429) {
             userErrorMessage = 'Rate limit exceeded. Please try again later.';
-          } else {
-            userErrorMessage = ERRORS.FAL.PROCESSING_FAILED;
           }
-
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: userErrorMessage,
-              details: errorData.detail || 'Unknown error',
-              code: 'AI_PROCESSING_FAILED',
-              responseTime
-            },
-            { status: falResponse.status > 400 ? falResponse.status : STATUS.SERVER_ERROR }
-          );
+          
+          return NextResponse.json({
+            success: false,
+            error: userErrorMessage,
+            details: errorData.detail || 'Unknown error',
+            code: 'AI_PROCESSING_FAILED',
+            responseTime: responseTime
+          }, { 
+            status: falResponse.status > 400 ? falResponse.status : STATUS.SERVER_ERROR 
+          });
         }
 
         const falData = await falResponse.json();
@@ -434,7 +467,7 @@ export async function POST(req: NextRequest) {
           }
         });
 
-      } catch (fetchError: any) { // DÜZELTME: any type eklendi
+      } catch (fetchError: any) {
         clearTimeout(timeoutId);
         const responseTime = Date.now() - startTime;
         
@@ -461,10 +494,11 @@ export async function POST(req: NextRequest) {
           );
         }
         
-        throw fetchError;
+        console.error(`[${requestId}] Fetch error:`, fetchError);
+        throw new Error(`Fetch failed: ${fetchError.message}`);
       }
 
-    } catch (imageProcessingError: any) { // DÜZELTME: any type eklendi
+    } catch (imageProcessingError: any) {
       console.error(`[${requestId}] Image processing error:`, imageProcessingError);
       
       // Rollback credits
@@ -494,7 +528,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-  } catch (err: any) { // DÜZELTME: any type eklendi
+  } catch (err: any) {
     const responseTime = Date.now() - startTime;
     console.error(`[${requestId}] Unhandled Error:`, {
       error: err.message,
@@ -527,7 +561,7 @@ export async function POST(req: NextRequest) {
               console.log(`[${requestId}] Credits rolled back for user ${user.id.substring(0, 8)}`);
             }
           }
-        } catch (creditError: any) { // DÜZELTME: any type eklendi
+        } catch (creditError: any) {
           console.error(`[${requestId}] Credit rollback failed:`, creditError);
         }
 
@@ -542,11 +576,11 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', historyRecord.id);
           console.log(`[${requestId}] History marked as failed`);
-        } catch (historyError: any) { // DÜZELTME: any type eklendi
+        } catch (historyError: any) {
           console.error(`[${requestId}] History update failed:`, historyError);
         }
       }
-    } catch (cleanupError: any) { // DÜZELTME: any type eklendi
+    } catch (cleanupError: any) {
       console.error(`[${requestId}] Cleanup failed:`, cleanupError);
     }
 
