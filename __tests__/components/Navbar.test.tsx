@@ -2,12 +2,11 @@
 import { render, screen } from '@testing-library/react'
 import Navbar from '@/components/Navbar'
 
-// Mock Next.js hooks
-jest.mock('next/navigation', () => ({
-  usePathname: () => '/',
-}))
+// Import mocks
+import './mocks/supabase'
+import './mocks/next-navigation'
 
-// Mock Supabase
+// Mock the specific hook used in Navbar
 jest.mock('@/lib/supabase/client', () => ({
   __esModule: true,
   default: () => ({
@@ -23,19 +22,34 @@ jest.mock('@/lib/supabase/client', () => ({
 }))
 
 describe('Navbar', () => {
-  it('renders logo and navigation links', () => {
+  it('renders without crashing', () => {
     render(<Navbar />)
-    
-    // Logo kontrolü
-    expect(screen.getByText(/mert app/i)).toBeInTheDocument()
-    
-    // Navigation links
-    expect(screen.getByRole('link', { name: /home/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /try-on/i })).toBeInTheDocument()
+    expect(screen.getByRole('navigation')).toBeInTheDocument()
   })
 
-  it('shows login button when user is not authenticated', () => {
+  it('shows logo', () => {
     render(<Navbar />)
-    expect(screen.getByRole('link', { name: /login/i })).toBeInTheDocument()
+    expect(screen.getByText(/mert app/i)).toBeInTheDocument()
+  })
+
+  it('has navigation links', () => {
+    render(<Navbar />)
+    
+    // Ana sayfa linki
+    const homeLink = screen.getByRole('link', { name: /home/i })
+    expect(homeLink).toBeInTheDocument()
+    expect(homeLink).toHaveAttribute('href', '/')
+    
+    // Try-on linki
+    const tryonLink = screen.getByRole('link', { name: /try-on/i })
+    expect(tryonLink).toBeInTheDocument()
+    expect(tryonLink).toHaveAttribute('href', '/')
+  })
+
+  it('shows login button when not authenticated', () => {
+    render(<Navbar />)
+    const loginButton = screen.getByRole('link', { name: /login/i })
+    expect(loginButton).toBeInTheDocument()
+    expect(loginButton).toHaveAttribute('href', '/auth/login')
   })
 })
