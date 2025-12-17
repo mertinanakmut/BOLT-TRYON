@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - TAM DÜZELTİLMİŞ VERSİYON
+// app/api/tryon/route.ts - LEFFA VIRTUAL TRYON VERSİYONU (TYPE FIXED)
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -9,23 +9,20 @@ import { CREDITS, ERRORS, STATUS } from '@/lib/constants';
 import { env } from '@/lib/env';
 
 // Helper function: File veya Base64'i Fal AI formatına çevir
+// LEFFA modeli data URL formatını kabul eder: data:image/png;base64,...
 async function prepareImageForFal(input: string): Promise<string> {
   try {
-    // Eğer base64 data URL formatındaysa (data:image/...)
+    // Eğer base64 data URL formatındaysa (data:image/...) - LEFFA için doğru format
     if (input.startsWith('data:image/')) {
-      // Base64 kısmını al
-      const commaIndex = input.indexOf(',');
-      if (commaIndex !== -1) {
-        return input.substring(commaIndex + 1);
-      }
-      return input;
+      return input; // LEFFA için data URL formatını olduğu gibi bırak
     }
     
-    // Eğer sadece base64 string ise
+    // Eğer sadece base64 string ise, data URL formatına çevir
     // Basit base64 validation
     const cleanStr = input.replace(/\s/g, '');
     if (/^[A-Za-z0-9+/]+=*$/.test(cleanStr) && cleanStr.length % 4 === 0) {
-      return cleanStr;
+      // LEFFA için data URL formatına çevir (varsayılan png)
+      return `data:image/png;base64,${cleanStr}`;
     }
     
     throw new Error('Invalid base64 format');
@@ -84,7 +81,7 @@ export async function POST(req: NextRequest) {
       
       if (userError || !authData.user) {
         const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
-        console.warn(`[${requestId}] Unauthorized try-on attempt from IP: ${ip}`);
+        console.warn(`[${requestId}] Unauthorized try-on request from IP: ${ip}`);
         return NextResponse.json(
           { 
             success: false, 
@@ -135,7 +132,9 @@ export async function POST(req: NextRequest) {
     // 4. Base64 format validation
     console.log(`[${requestId}] Images received: model=${modelImage.length} chars, tshirt=${tshirtImage.length} chars`);
 
-    // 5. Kredi kontrolü
+    // 5. Kredi kontrolü - LEFFA modeli için video yok
+    const requiredCredits = CREDITS.TRYON_COST; // Video opsiyonu yok, sabit kredi
+    
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('credits, subscription_tier')
@@ -153,8 +152,6 @@ export async function POST(req: NextRequest) {
         { status: STATUS.NOT_FOUND }
       );
     }
-
-    const requiredCredits = generateVideo ? CREDITS.TRYON_VIDEO_COST : CREDITS.TRYON_COST;
     
     if (profile.credits < requiredCredits) {
       console.warn(`[${requestId}] Insufficient credits: required=${requiredCredits}, available=${profile.credits}`);
@@ -202,9 +199,10 @@ export async function POST(req: NextRequest) {
         garment_image_preview: tshirtImage.substring(0, 200) + '...',
         status: 'processing',
         credits_used: requiredCredits,
-        generate_video: generateVideo,
+        generate_video: false, // LEFFA modeli video üretmez
         options: options || {},
-        request_id: requestId
+        request_id: requestId,
+        model_used: 'leffa/virtual-tryon' // Model bilgisini kaydet
       })
       .select()
       .single();
@@ -250,7 +248,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`[${requestId}] Credits reserved, new balance: ${profile.credits - requiredCredits}`);
 
-    // 9. FAL AI API Call - EN ÖNEMLİ KISIM
+    // 9. FAL AI API Call - LEFFA VIRTUAL TRYON
     const FAL_API_KEY = env.FAL_API_KEY;
     if (!FAL_API_KEY) {
       console.error(`[${requestId}] FAL_API_KEY missing from environment`);
@@ -279,44 +277,46 @@ export async function POST(req: NextRequest) {
     console.log(`[${requestId}] FAL API Key found (length: ${FAL_API_KEY.length})`);
 
     try {
-      // Görselleri hazırla
-      const modelImageBase64 = await prepareImageForFal(modelImage);
-      const tshirtImageBase64 = await prepareImageForFal(tshirtImage);
+      // Görselleri hazırla - LEFFA için data URL formatı
+      const modelImageFormatted = await prepareImageForFal(modelImage);
+      const tshirtImageFormatted = await prepareImageForFal(tshirtImage);
       
-      console.log(`[${requestId}] Images prepared for FAL AI`);
+      console.log(`[${requestId}] Images prepared for FAL AI (LEFFA model)`);
 
-      // FAL AI için payload - FACE-TO-MANY modeli kullanıyoruz
-      const falPayload = {
-        model_name: "face-to-many",
-        model_image: modelImageBase64,
-        garment_image: tshirtImageBase64,
-        // Optional parameters
-        guidance_scale: options?.guidanceScale || 7.5,
-        num_inference_steps: options?.numInferenceSteps || 30,
-        seed: options?.seed || Math.floor(Math.random() * 1000000),
-        enable_safety_checker: options?.enableSafetyChecker ?? true,
-        sync_mode: true
+      // FAL AI için payload - LEFFA Virtual TryOn modeli
+      // TypeScript için interface tanımla
+      interface FalPayload {
+        image_url: string;
+        garment_image_url: string;
+        seed?: number;
+        [key: string]: any; // Diğer opsiyonel parametreler için
+      }
+      
+      const falPayload: FalPayload = {
+        // LEFFA modeli için gerekli parametreler
+        image_url: modelImageFormatted, // Model kişinin fotoğrafı (data URL formatında)
+        garment_image_url: tshirtImageFormatted, // Giyilecek kıyafet fotoğrafı
       };
 
-      console.log(`[${requestId}] Calling FAL AI with model: ${falPayload.model_name}`);
-      console.log(`[${requestId}] FAL Payload:`, {
-        guidance_scale: falPayload.guidance_scale,
-        num_inference_steps: falPayload.num_inference_steps,
-        seed: falPayload.seed,
-        enable_safety_checker: falPayload.enable_safety_checker,
-        sync_mode: falPayload.sync_mode
-      });
+      // İsteğe bağlı parametreleri ekle (model dokümantasyonunda varsa)
+      if (options) {
+        if (options.seed) falPayload.seed = options.seed;
+        // LEFFA modeline özel parametreler eklenebilir
+      }
 
-      // FAL AI API çağrısı
+      console.log(`[${requestId}] Calling FAL AI with model: leffa/virtual-tryon`);
+      console.log(`[${requestId}] FAL Payload keys:`, Object.keys(falPayload));
+
+      // FAL AI API çağrısı - LEFFA modeli için
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn(`[${requestId}] FAL AI request timeout (60s)`);
+        console.warn(`[${requestId}] FAL AI request timeout (90s)`);
         controller.abort();
-      }, 60000);
+      }, 90000); // LEFFA için daha uzun timeout
 
       try {
-        // Fal AI endpoint
-        const falResponse = await fetch('https://fal.run/fal-ai/face-to-many', {
+        // YENİ ENDPOINT: Leffa Virtual TryOn
+        const falResponse = await fetch('https://fal.run/fal-ai/leffa/virtual-tryon', {
           method: 'POST',
           headers: {
             'Authorization': `Key ${FAL_API_KEY}`,
@@ -355,19 +355,20 @@ export async function POST(req: NextRequest) {
             .update({ credits: profile.credits })
             .eq('id', user.id);
           
-          // Update history as failed - DÜZELTİLDİ
+          // Update history as failed
           await supabase
             .from('tryon_history')
             .update({
               status: 'failed',
               error_message: errorData.detail || errorData.message || `FAL API error: ${falResponse.status}`,
               processing_time_ms: responseTime,
-              fal_response: errorData
+              fal_response: errorData,
+              model_used: 'leffa/virtual-tryon'
             })
             .eq('id', historyRecord.id);
 
-          // Hata mesajını belirle
-          let userErrorMessage = ERRORS.FAL.PROCESSING.FAILED;
+          // Hata mesajını belirle - TYPE FIXED
+          let userErrorMessage: string = ERRORS.FAL.PROCESSING_FAILED;
 
           if (falResponse.status === 401) {
             userErrorMessage = 'API authentication failed. Please check API key.';
@@ -389,22 +390,22 @@ export async function POST(req: NextRequest) {
         }
 
         const falData = await falResponse.json();
-        console.log(`[${requestId}] FAL AI success response keys:`, Object.keys(falData));
-        console.log(`[${requestId}] FAL AI images count:`, falData.images?.length || 0);
+        console.log(`[${requestId}] FAL AI success response:`, falData);
         
-        // FAL AI response formatını kontrol et
+        // LEFFA modelinin response formatını işle
+        // Format: { "image": { "height": 1024, "content_type": "image/jpeg", "url": "...", "width": 768 } }
+        
         let resultImageUrl = null;
-        if (falData.images && falData.images.length > 0) {
-          resultImageUrl = falData.images[0].url;
-        } else if (falData.image_url) {
-          resultImageUrl = falData.image_url;
-        } else if (falData.output) {
-          resultImageUrl = falData.output;
+        if (falData.image && falData.image.url) {
+          resultImageUrl = falData.image.url;
         } else if (falData.url) {
           resultImageUrl = falData.url;
+        } else if (falData.output) {
+          resultImageUrl = falData.output;
         }
         
         if (!resultImageUrl) {
+          console.error(`[${requestId}] No image URL found in FAL AI response:`, falData);
           throw new Error('No image URL found in FAL AI response');
         }
 
@@ -416,13 +417,14 @@ export async function POST(req: NextRequest) {
           .update({
             status: 'completed',
             result_url: resultImageUrl,
-            video_url: generateVideo && falData.video_url ? falData.video_url : null,
+            video_url: null, // LEFFA modeli video üretmez
             processing_time_ms: responseTime,
-            fal_request_id: falData.request_id || falData.id,
+            fal_request_id: falData.request_id || `leffa_${Date.now()}`,
+            model_used: 'leffa/virtual-tryon',
             metrics: {
-              inference_time: falData.metrics?.inference_time || responseTime,
-              seed: falPayload.seed,
-              model: falPayload.model_name
+              inference_time: responseTime,
+              seed: falPayload.seed || 'not_specified',
+              model: 'leffa/virtual-tryon'
             }
           })
           .eq('id', historyRecord.id);
@@ -434,21 +436,22 @@ export async function POST(req: NextRequest) {
           success: true,
           data: {
             imageUrl: resultImageUrl,
-            videoUrl: generateVideo && falData.video_url ? falData.video_url : null,
-            generationTimeMs: falData.metrics?.inference_time || responseTime,
+            videoUrl: null, // LEFFA modeli video üretmez
+            generationTimeMs: responseTime,
             remainingCredits: profile.credits - requiredCredits,
-            requestId: falData.request_id || falData.id,
+            requestId: falData.request_id || `leffa_${Date.now()}`,
             historyId: historyRecord.id,
-            imageUrls: falData.images || [resultImageUrl]
+            // LEFFA'dan gelen image objesini de ekleyelim
+            imageDetails: falData.image || { url: resultImageUrl }
           },
           meta: {
             responseTime,
             creditsUsed: requiredCredits,
-            videoGenerated: generateVideo && !!falData.video_url,
+            videoGenerated: false, // LEFFA modeli video üretmez
             userTier: profile.subscription_tier || 'free',
             garmentType: options?.category || 'tshirt',
-            model: 'face-to-many',
-            seed: falPayload.seed
+            model: 'leffa/virtual-tryon',
+            seed: falPayload.seed || 'not_specified'
           }
         };
 
@@ -463,7 +466,7 @@ export async function POST(req: NextRequest) {
             'X-Response-Time': responseTime.toString(),
             'X-Credits-Used': requiredCredits.toString(),
             'X-Remaining-Credits': (profile.credits - requiredCredits).toString(),
-            'X-FAL-Model': 'face-to-many'
+            'X-FAL-Model': 'leffa/virtual-tryon'
           }
         });
 
@@ -478,8 +481,9 @@ export async function POST(req: NextRequest) {
             .from('tryon_history')
             .update({
               status: 'failed',
-              error_message: 'Request timeout (60s) - FAL AI took too long to respond',
-              processing_time_ms: responseTime
+              error_message: 'Request timeout (90s) - FAL AI took too long to respond',
+              processing_time_ms: responseTime,
+              model_used: 'leffa/virtual-tryon'
             })
             .eq('id', historyRecord.id);
           
@@ -513,7 +517,8 @@ export async function POST(req: NextRequest) {
         .update({
           status: 'failed',
           error_message: `Image processing error: ${imageProcessingError.message}`,
-          processing_time_ms: Date.now() - startTime
+          processing_time_ms: Date.now() - startTime,
+          model_used: 'leffa/virtual-tryon'
         })
         .eq('id', historyRecord.id);
       
@@ -572,7 +577,8 @@ export async function POST(req: NextRequest) {
             .update({
               status: 'failed',
               error_message: err.message || 'Unknown internal error',
-              processing_time_ms: responseTime
+              processing_time_ms: responseTime,
+              model_used: historyRecord.model_used || 'leffa/virtual-tryon'
             })
             .eq('id', historyRecord.id);
           console.log(`[${requestId}] History marked as failed`);
