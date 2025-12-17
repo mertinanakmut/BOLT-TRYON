@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - LEFFA VIRTUAL TRYON VERSİYONU (TYPE FIXED)
+// app/api/tryon/route.ts - DEBUG VERSİYONU
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -8,26 +8,28 @@ import { tryOnSchema } from '@/lib/validation';
 import { CREDITS, ERRORS, STATUS } from '@/lib/constants';
 import { env } from '@/lib/env';
 
-// Helper function: File veya Base64'i Fal AI formatına çevir
-// LEFFA modeli data URL formatını kabul eder: data:image/png;base64,...
+// DEBUG: Başlangıç log'u
+console.log('🔧 API Route yüklendi:', new Date().toISOString());
+
 async function prepareImageForFal(input: string): Promise<string> {
+  console.log('🖼️ prepareImageForFal called, input length:', input?.length || 0);
+  
   try {
-    // Eğer base64 data URL formatındaysa (data:image/...) - LEFFA için doğru format
     if (input.startsWith('data:image/')) {
-      return input; // LEFFA için data URL formatını olduğu gibi bırak
+      console.log('✓ Data URL formatı tespit edildi');
+      return input;
     }
     
-    // Eğer sadece base64 string ise, data URL formatına çevir
-    // Basit base64 validation
     const cleanStr = input.replace(/\s/g, '');
     if (/^[A-Za-z0-9+/]+=*$/.test(cleanStr) && cleanStr.length % 4 === 0) {
-      // LEFFA için data URL formatına çevir (varsayılan png)
-      return `data:image/png;base64,${cleanStr}`;
+      const result = `data:image/png;base64,${cleanStr}`;
+      console.log('✓ Base64 data URL formatına çevrildi, length:', result.length);
+      return result;
     }
     
     throw new Error('Invalid base64 format');
   } catch (error) {
-    console.error('Image preparation error:', error);
+    console.error('❌ Image preparation error:', error);
     throw new Error('Failed to prepare image for processing');
   }
 }
@@ -37,51 +39,82 @@ export async function POST(req: NextRequest) {
   let historyRecord: any = null;
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   
-  console.log(`[${requestId}] Try-on request started`);
+  console.log(`\n\n🚀 ========== [${requestId}] API ÇAĞRILDI ==========`);
+  console.log(`[${requestId}] Time: ${new Date().toISOString()}`);
+  console.log(`[${requestId}] URL: ${req.url}`);
   
   try {
-    // DEVTEST MODU - Eğer .env.local'da DEV_TEST_MODE=true ise auth'u bypass et
+    // 1. DEV_TEST_MODE kontrolü
     const DEV_TEST_MODE = process.env.DEV_TEST_MODE === 'true';
+    console.log(`[${requestId}] DEV_TEST_MODE: ${DEV_TEST_MODE}, value: "${process.env.DEV_TEST_MODE}"`);
+    console.log(`[${requestId}] FAL_API_KEY exists: ${!!env.FAL_API_KEY}`);
+    
     let user: any;
     let supabase;
 
+    // 2. Supabase client oluştur
+    console.log(`[${requestId}] Creating Supabase client...`);
+    try {
+      supabase = await createClient();
+      console.log(`[${requestId}] ✓ Supabase client created`);
+    } catch (supabaseError: any) {
+      console.error(`[${requestId}] ❌ Supabase client error:`, supabaseError.message);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Database connection failed',
+          code: 'DB_CONNECTION_ERROR'
+        },
+        { status: STATUS.SERVER_ERROR }
+      );
+    }
+
     if (DEV_TEST_MODE) {
-      console.log(`[${requestId}] DEV TEST MODE ACTIVE - Bypassing authentication`);
+      console.log(`[${requestId}] 🧪 DEV TEST MODE ACTIVE - Bypassing authentication`);
       
-      // Test için dummy user oluştur
       user = {
         id: 'dev-test-user-id-123456',
         email: 'dev@test.com'
       };
       
-      supabase = await createClient();
-      
-      // Test user için profile kontrol et, yoksa oluştur
-      const { data: existingProfile } = await supabase
+      // Test user için profile kontrol et
+      console.log(`[${requestId}] Checking test user profile...`);
+      const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
         .eq('id', user.id)
         .single();
         
+      if (profileError) {
+        console.log(`[${requestId}] Profile error (might not exist):`, profileError.message);
+      }
+      
       if (!existingProfile) {
         console.log(`[${requestId}] Creating test user profile...`);
-        await supabase.from('profiles').insert({
+        const { error: insertError } = await supabase.from('profiles').insert({
           id: user.id,
           email: user.email,
           credits: 100,
           subscription_tier: 'free',
           created_at: new Date().toISOString()
         });
+        
+        if (insertError) {
+          console.error(`[${requestId}] ❌ Profile creation error:`, insertError);
+        } else {
+          console.log(`[${requestId}] ✓ Test profile created`);
+        }
+      } else {
+        console.log(`[${requestId}] ✓ Test profile exists, credits: ${existingProfile.credits}`);
       }
       
     } else {
-      // NORMAL MOD - Auth kontrolü
-      supabase = await createClient();
+      console.log(`[${requestId}] 🔐 NORMAL MODE - Checking authentication`);
       const { data: authData, error: userError } = await supabase.auth.getUser();
       
       if (userError || !authData.user) {
+        console.warn(`[${requestId}] ❌ Unauthorized:`, userError?.message);
         const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
-        console.warn(`[${requestId}] Unauthorized try-on request from IP: ${ip}`);
         return NextResponse.json(
           { 
             success: false, 
@@ -92,16 +125,19 @@ export async function POST(req: NextRequest) {
         );
       }
       user = authData.user;
+      console.log(`[${requestId}] ✓ User authenticated: ${user.id.substring(0, 8)}`);
     }
 
-    console.log(`[${requestId}] User authenticated: ${user.id.substring(0, 8)} (DEV_TEST_MODE: ${DEV_TEST_MODE})`);
-
-    // 3. Input Validation
+    // 3. Request body al
+    console.log(`[${requestId}] Reading request body...`);
     let body;
     try {
       body = await req.json();
+      console.log(`[${requestId}] ✓ Body received, keys:`, Object.keys(body));
+      console.log(`[${requestId}]   modelImage length: ${body.modelImage?.length || 0}`);
+      console.log(`[${requestId}]   tshirtImage length: ${body.tshirtImage?.length || 0}`);
     } catch (parseError: any) {
-      console.error(`[${requestId}] JSON parse error:`, parseError);
+      console.error(`[${requestId}] ❌ JSON parse error:`, parseError.message);
       return NextResponse.json(
         { 
           success: false, 
@@ -112,10 +148,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Zod validation
+    // 4. Zod validation
+    console.log(`[${requestId}] Validating with Zod...`);
     const validationResult = tryOnSchema.safeParse(body);
     if (!validationResult.success) {
-      console.error(`[${requestId}] Validation error:`, validationResult.error.format());
+      console.error(`[${requestId}] ❌ Validation error:`, validationResult.error.format());
       return NextResponse.json(
         {
           success: false,
@@ -126,14 +163,13 @@ export async function POST(req: NextRequest) {
         { status: STATUS.BAD_REQUEST }
       );
     }
+    console.log(`[${requestId}] ✓ Validation passed`);
 
     const { modelImage, tshirtImage, generateVideo = false, options } = validationResult.data;
 
-    // 4. Base64 format validation
-    console.log(`[${requestId}] Images received: model=${modelImage.length} chars, tshirt=${tshirtImage.length} chars`);
-
-    // 5. Kredi kontrolü - LEFFA modeli için video yok
-    const requiredCredits = CREDITS.TRYON_COST; // Video opsiyonu yok, sabit kredi
+    // 5. Kredi kontrolü
+    console.log(`[${requestId}] Checking credits...`);
+    const requiredCredits = CREDITS.TRYON_COST;
     
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -142,73 +178,88 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      console.error(`[${requestId}] Profile fetch error:`, profileError);
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: ERRORS.AUTH.NO_PROFILE,
-          code: 'PROFILE_NOT_FOUND'
-        },
-        { status: STATUS.NOT_FOUND }
-      );
-    }
-    
-    if (profile.credits < requiredCredits) {
-      console.warn(`[${requestId}] Insufficient credits: required=${requiredCredits}, available=${profile.credits}`);
+      console.error(`[${requestId}] ❌ Profile fetch error:`, profileError?.message);
+      console.log(`[${requestId}] User ID: ${user.id}`);
+      
+      // Profil yoksa oluşturmaya çalış
+      console.log(`[${requestId}] Attempting to create profile...`);
+      const { error: createError } = await supabase.from('profiles').insert({
+        id: user.id,
+        email: user.email,
+        credits: 5,
+        subscription_tier: 'free',
+        created_at: new Date().toISOString()
+      });
+      
+      if (createError) {
+        console.error(`[${requestId}] ❌ Profile creation also failed:`, createError);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: ERRORS.AUTH.NO_PROFILE,
+            code: 'PROFILE_NOT_FOUND'
+          },
+          { status: STATUS.NOT_FOUND }
+        );
+      }
+      
+      console.log(`[${requestId}] ✓ Profile created successfully`);
+      // Yeniden seç
+      const { data: newProfile } = await supabase
+        .from('profiles')
+        .select('credits, subscription_tier')
+        .eq('id', user.id)
+        .single();
+      
+      if (newProfile && newProfile.credits < requiredCredits) {
+        console.warn(`[${requestId}] ❌ Insufficient credits after creation: ${newProfile.credits}`);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: ERRORS.API.INSUFFICIENT_CREDITS,
+            code: 'INSUFFICIENT_CREDITS'
+          },
+          { status: STATUS.PAYMENT_REQUIRED }
+        );
+      }
+    } else if (profile.credits < requiredCredits) {
+      console.warn(`[${requestId}] ❌ Insufficient credits: ${profile.credits} < ${requiredCredits}`);
       return NextResponse.json(
         { 
           success: false, 
           error: ERRORS.API.INSUFFICIENT_CREDITS,
-          code: 'INSUFFICIENT_CREDITS',
-          required: requiredCredits,
-          available: profile.credits
+          code: 'INSUFFICIENT_CREDITS'
         },
         { status: STATUS.PAYMENT_REQUIRED }
       );
     }
 
-    console.log(`[${requestId}] Credits available: ${profile.credits}, required: ${requiredCredits}`);
+    console.log(`[${requestId}] ✓ Credits available: ${profile?.credits || 5}`);
 
-    // 6. Concurrent request kontrolü
-    const { data: activeRequests } = await supabase
-      .from('tryon_history')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('status', 'processing')
-      .limit(1);
+    // 6. Concurrent request kontrolü (skip edebiliriz debug için)
+    console.log(`[${requestId}] Skipping concurrent check for debug...`);
 
-    if (activeRequests && activeRequests.length > 0) {
-      console.warn(`[${requestId}] Concurrent request detected for user ${user.id.substring(0, 8)}`);
-      return NextResponse.json(
-        {
-          success: false,
-          error: ERRORS.API.CONCURRENT_REQUEST,
-          code: 'CONCURRENT_REQUEST'
-        },
-        { status: STATUS.RATE_LIMITED }
-      );
-    }
-
-    // 7. İlk önce geçmişe kaydet (pending state)
+    // 7. History kaydı
+    console.log(`[${requestId}] Creating history record...`);
     const { data: newHistoryRecord, error: historyInsertError } = await supabase
       .from('tryon_history')
       .insert({
         user_id: user.id,
-        model_image_preview: modelImage.substring(0, 200) + '...',
+        model_image_preview: modelImage.substring(0, 50) + '...',
         garment_type: options?.category || 'tshirt',
-        garment_image_preview: tshirtImage.substring(0, 200) + '...',
+        garment_image_preview: tshirtImage.substring(0, 50) + '...',
         status: 'processing',
         credits_used: requiredCredits,
-        generate_video: false, // LEFFA modeli video üretmez
+        generate_video: false,
         options: options || {},
         request_id: requestId,
-        model_used: 'leffa/virtual-tryon' // Model bilgisini kaydet
+        model_used: 'leffa/virtual-tryon'
       })
       .select()
       .single();
 
     if (historyInsertError) {
-      console.error(`[${requestId}] History insert error:`, historyInsertError);
+      console.error(`[${requestId}] ❌ History insert error:`, historyInsertError);
       return NextResponse.json(
         {
           success: false,
@@ -220,50 +271,18 @@ export async function POST(req: NextRequest) {
     }
 
     historyRecord = newHistoryRecord;
-    console.log(`[${requestId}] History record created: ${historyRecord.id}`);
+    console.log(`[${requestId}] ✓ History record created: ${historyRecord.id}`);
 
-    // 8. Krediyi REZERVE et
-    const { error: creditReserveError } = await supabase
-      .from('profiles')
-      .update({ credits: profile.credits - requiredCredits })
-      .eq('id', user.id);
+    // 8. Kredi rezervasyonu (debug için skip)
+    console.log(`[${requestId}] Skipping credit reservation for debug...`);
 
-    if (creditReserveError) {
-      console.error(`[${requestId}] Credit reserve error:`, creditReserveError);
-      // Rollback history
-      await supabase
-        .from('tryon_history')
-        .delete()
-        .eq('id', historyRecord.id);
-      
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Credit processing failed',
-          code: 'CREDIT_PROCESSING_ERROR'
-        },
-        { status: STATUS.SERVER_ERROR }
-      );
-    }
-
-    console.log(`[${requestId}] Credits reserved, new balance: ${profile.credits - requiredCredits}`);
-
-    // 9. FAL AI API Call - LEFFA VIRTUAL TRYON
+    // 9. FAL AI API Call
+    console.log(`[${requestId}] Preparing FAL AI call...`);
+    
     const FAL_API_KEY = env.FAL_API_KEY;
     if (!FAL_API_KEY) {
-      console.error(`[${requestId}] FAL_API_KEY missing from environment`);
-      
-      // Rollback
-      await supabase
-        .from('profiles')
-        .update({ credits: profile.credits })
-        .eq('id', user.id);
-      
-      await supabase
-        .from('tryon_history')
-        .delete()
-        .eq('id', historyRecord.id);
-      
+      console.error(`[${requestId}] ❌ FAL_API_KEY missing!`);
+      console.log(`[${requestId}] Check .env.local file for FAL_API_KEY`);
       return NextResponse.json(
         { 
           success: false, 
@@ -274,48 +293,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[${requestId}] FAL API Key found (length: ${FAL_API_KEY.length})`);
+    console.log(`[${requestId}] ✓ FAL API Key found (starts with: ${FAL_API_KEY.substring(0, 10)}...)`);
 
     try {
-      // Görselleri hazırla - LEFFA için data URL formatı
+      // Görselleri hazırla
+      console.log(`[${requestId}] Preparing images...`);
       const modelImageFormatted = await prepareImageForFal(modelImage);
       const tshirtImageFormatted = await prepareImageForFal(tshirtImage);
       
-      console.log(`[${requestId}] Images prepared for FAL AI (LEFFA model)`);
+      console.log(`[${requestId}] ✓ Images prepared`);
+      console.log(`[${requestId}]   modelImage starts with: ${modelImageFormatted.substring(0, 50)}...`);
+      console.log(`[${requestId}]   tshirtImage starts with: ${tshirtImageFormatted.substring(0, 50)}...`);
 
-      // FAL AI için payload - LEFFA Virtual TryOn modeli
-      // TypeScript için interface tanımla
+      // FAL AI payload
       interface FalPayload {
         image_url: string;
         garment_image_url: string;
         seed?: number;
-        [key: string]: any; // Diğer opsiyonel parametreler için
+        [key: string]: any;
       }
       
       const falPayload: FalPayload = {
-        // LEFFA modeli için gerekli parametreler
-        image_url: modelImageFormatted, // Model kişinin fotoğrafı (data URL formatında)
-        garment_image_url: tshirtImageFormatted, // Giyilecek kıyafet fotoğrafı
+        image_url: modelImageFormatted,
+        garment_image_url: tshirtImageFormatted,
       };
 
-      // İsteğe bağlı parametreleri ekle (model dokümantasyonunda varsa)
-      if (options) {
-        if (options.seed) falPayload.seed = options.seed;
-        // LEFFA modeline özel parametreler eklenebilir
+      if (options?.seed) {
+        falPayload.seed = options.seed;
+        console.log(`[${requestId}] Using seed: ${options.seed}`);
       }
 
-      console.log(`[${requestId}] Calling FAL AI with model: leffa/virtual-tryon`);
-      console.log(`[${requestId}] FAL Payload keys:`, Object.keys(falPayload));
+      console.log(`[${requestId}] 📤 Sending to FAL AI...`);
+      console.log(`[${requestId}] Endpoint: https://fal.run/fal-ai/leffa/virtual-tryon`);
+      console.log(`[${requestId}] Payload size: ${JSON.stringify(falPayload).length} bytes`);
 
-      // FAL AI API çağrısı - LEFFA modeli için
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn(`[${requestId}] FAL AI request timeout (90s)`);
+        console.warn(`[${requestId}] ⏰ FAL AI request timeout (90s)`);
         controller.abort();
-      }, 90000); // LEFFA için daha uzun timeout
+      }, 90000);
 
       try {
-        // YENİ ENDPOINT: Leffa Virtual TryOn
         const falResponse = await fetch('https://fal.run/fal-ai/leffa/virtual-tryon', {
           method: 'POST',
           headers: {
@@ -330,32 +348,23 @@ export async function POST(req: NextRequest) {
         clearTimeout(timeoutId);
         const responseTime = Date.now() - startTime;
         
-        console.log(`[${requestId}] FAL AI response status: ${falResponse.status}, time: ${responseTime}ms`);
+        console.log(`[${requestId}] 📥 FAL AI response received`);
+        console.log(`[${requestId}]   Status: ${falResponse.status}`);
+        console.log(`[${requestId}]   Time: ${responseTime}ms`);
+        console.log(`[${requestId}]   Headers:`, Object.fromEntries(falResponse.headers.entries()));
 
         if (!falResponse.ok) {
           let errorData: any;
           try {
             errorData = await falResponse.json();
-            console.error(`[${requestId}] FAL AI API Error (JSON):`, {
-              status: falResponse.status,
-              error: errorData
-            });
+            console.error(`[${requestId}] ❌ FAL AI API Error (JSON):`, errorData);
           } catch (jsonError: any) {
             const errorText = await falResponse.text();
-            console.error(`[${requestId}] FAL AI API Error (Text):`, {
-              status: falResponse.status,
-              text: errorText.substring(0, 500)
-            });
+            console.error(`[${requestId}] ❌ FAL AI API Error (Text):`, errorText.substring(0, 500));
             errorData = { detail: errorText };
           }
           
-          // Rollback credits
-          await supabase
-            .from('profiles')
-            .update({ credits: profile.credits })
-            .eq('id', user.id);
-          
-          // Update history as failed
+          console.log(`[${requestId}] Updating history as failed...`);
           await supabase
             .from('tryon_history')
             .update({
@@ -367,7 +376,6 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', historyRecord.id);
 
-          // Hata mesajını belirle - TYPE FIXED
           let userErrorMessage: string = ERRORS.FAL.PROCESSING_FAILED;
 
           if (falResponse.status === 401) {
@@ -378,6 +386,7 @@ export async function POST(req: NextRequest) {
             userErrorMessage = 'Rate limit exceeded. Please try again later.';
           }
           
+          console.log(`[${requestId}] Returning error to client...`);
           return NextResponse.json({
             success: false,
             error: userErrorMessage,
@@ -390,10 +399,16 @@ export async function POST(req: NextRequest) {
         }
 
         const falData = await falResponse.json();
-        console.log(`[${requestId}] FAL AI success response:`, falData);
+        console.log(`[${requestId}] ✅ FAL AI SUCCESS!`);
+        console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
-        // LEFFA modelinin response formatını işle
-        // Format: { "image": { "height": 1024, "content_type": "image/jpeg", "url": "...", "width": 768 } }
+        if (falData.image) {
+          console.log(`[${requestId}] Image object:`, {
+            url: falData.image.url?.substring(0, 100),
+            width: falData.image.width,
+            height: falData.image.height
+          });
+        }
         
         let resultImageUrl = null;
         if (falData.image && falData.image.url) {
@@ -405,19 +420,20 @@ export async function POST(req: NextRequest) {
         }
         
         if (!resultImageUrl) {
-          console.error(`[${requestId}] No image URL found in FAL AI response:`, falData);
+          console.error(`[${requestId}] ❌ No image URL in response:`, falData);
           throw new Error('No image URL found in FAL AI response');
         }
 
-        console.log(`[${requestId}] Result image URL: ${resultImageUrl.substring(0, 100)}...`);
+        console.log(`[${requestId}] ✓ Result URL: ${resultImageUrl.substring(0, 100)}...`);
 
-        // 10. Tüm işlem başarılı, history'i güncelle
+        // Update history
+        console.log(`[${requestId}] Updating history as completed...`);
         await supabase
           .from('tryon_history')
           .update({
             status: 'completed',
             result_url: resultImageUrl,
-            video_url: null, // LEFFA modeli video üretmez
+            video_url: null,
             processing_time_ms: responseTime,
             fal_request_id: falData.request_id || `leffa_${Date.now()}`,
             model_used: 'leffa/virtual-tryon',
@@ -429,43 +445,49 @@ export async function POST(req: NextRequest) {
           })
           .eq('id', historyRecord.id);
 
-        console.log(`[${requestId}] History updated successfully`);
+        console.log(`[${requestId}] ✓ History updated`);
 
-        // 11. Response hazırla
+        // Success response
+        const totalTime = Date.now() - startTime;
         const result = {
           success: true,
           data: {
             imageUrl: resultImageUrl,
-            videoUrl: null, // LEFFA modeli video üretmez
+            videoUrl: null,
             generationTimeMs: responseTime,
-            remainingCredits: profile.credits - requiredCredits,
+            remainingCredits: (profile?.credits || 5) - requiredCredits,
             requestId: falData.request_id || `leffa_${Date.now()}`,
             historyId: historyRecord.id,
-            // LEFFA'dan gelen image objesini de ekleyelim
             imageDetails: falData.image || { url: resultImageUrl }
           },
           meta: {
-            responseTime,
+            responseTime: totalTime,
             creditsUsed: requiredCredits,
-            videoGenerated: false, // LEFFA modeli video üretmez
-            userTier: profile.subscription_tier || 'free',
+            videoGenerated: false,
+            userTier: profile?.subscription_tier || 'free',
             garmentType: options?.category || 'tshirt',
             model: 'leffa/virtual-tryon',
             seed: falPayload.seed || 'not_specified'
+          },
+          debug: {
+            requestId,
+            devMode: DEV_TEST_MODE,
+            userId: user.id.substring(0, 8)
           }
         };
 
-        console.log(`[${requestId}] Try-on completed successfully for user ${user.id.substring(0, 8)}`);
-        console.log(`[${requestId}] Total processing time: ${responseTime}ms`);
+        console.log(`[${requestId}] 🎉 TRY-ON COMPLETED SUCCESSFULLY!`);
+        console.log(`[${requestId}] Total time: ${totalTime}ms`);
+        console.log(`[${requestId}] =====================================\n`);
 
         return NextResponse.json(result, {
           status: STATUS.SUCCESS,
           headers: {
             'X-Request-ID': requestId,
             'X-History-ID': historyRecord.id,
-            'X-Response-Time': responseTime.toString(),
+            'X-Response-Time': totalTime.toString(),
             'X-Credits-Used': requiredCredits.toString(),
-            'X-Remaining-Credits': (profile.credits - requiredCredits).toString(),
+            'X-Remaining-Credits': ((profile?.credits || 5) - requiredCredits).toString(),
             'X-FAL-Model': 'leffa/virtual-tryon'
           }
         });
@@ -475,13 +497,13 @@ export async function POST(req: NextRequest) {
         const responseTime = Date.now() - startTime;
         
         if (fetchError.name === 'AbortError') {
-          console.error(`[${requestId}] FAL AI request timeout after ${responseTime}ms`);
+          console.error(`[${requestId}] ⏰ FAL AI timeout after ${responseTime}ms`);
           
           await supabase
             .from('tryon_history')
             .update({
               status: 'failed',
-              error_message: 'Request timeout (90s) - FAL AI took too long to respond',
+              error_message: 'Request timeout (90s)',
               processing_time_ms: responseTime,
               model_used: 'leffa/virtual-tryon'
             })
@@ -498,20 +520,13 @@ export async function POST(req: NextRequest) {
           );
         }
         
-        console.error(`[${requestId}] Fetch error:`, fetchError);
+        console.error(`[${requestId}] ❌ Fetch error:`, fetchError.message);
         throw new Error(`Fetch failed: ${fetchError.message}`);
       }
 
     } catch (imageProcessingError: any) {
-      console.error(`[${requestId}] Image processing error:`, imageProcessingError);
+      console.error(`[${requestId}] ❌ Image processing error:`, imageProcessingError);
       
-      // Rollback credits
-      await supabase
-        .from('profiles')
-        .update({ credits: profile.credits })
-        .eq('id', user.id);
-      
-      // Update history as failed
       await supabase
         .from('tryon_history')
         .update({
@@ -535,67 +550,19 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     const responseTime = Date.now() - startTime;
-    console.error(`[${requestId}] Unhandled Error:`, {
-      error: err.message,
-      stack: err.stack,
-      responseTime
-    });
-
-    // Emergency cleanup
-    try {
-      if (historyRecord) {
-        console.error(`[${requestId}] Attempting cleanup for history ID: ${historyRecord.id}`);
-        
-        const supabase = await createClient();
-        
-        // Credits'i geri ver
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('credits')
-              .eq('id', user.id)
-              .single();
-
-            if (profile && historyRecord.credits_used) {
-              await supabase
-                .from('profiles')
-                .update({ credits: profile.credits + historyRecord.credits_used })
-                .eq('id', user.id);
-              console.log(`[${requestId}] Credits rolled back for user ${user.id.substring(0, 8)}`);
-            }
-          }
-        } catch (creditError: any) {
-          console.error(`[${requestId}] Credit rollback failed:`, creditError);
-        }
-
-        // History'i failed yap
-        try {
-          await supabase
-            .from('tryon_history')
-            .update({
-              status: 'failed',
-              error_message: err.message || 'Unknown internal error',
-              processing_time_ms: responseTime,
-              model_used: historyRecord.model_used || 'leffa/virtual-tryon'
-            })
-            .eq('id', historyRecord.id);
-          console.log(`[${requestId}] History marked as failed`);
-        } catch (historyError: any) {
-          console.error(`[${requestId}] History update failed:`, historyError);
-        }
-      }
-    } catch (cleanupError: any) {
-      console.error(`[${requestId}] Cleanup failed:`, cleanupError);
-    }
+    console.error(`\n[${requestId}] ⚠️ UNHANDLED ERROR:`);
+    console.error(`[${requestId}] Message:`, err.message);
+    console.error(`[${requestId}] Stack:`, err.stack);
+    console.error(`[${requestId}] Time: ${responseTime}ms`);
+    console.log(`[${requestId}] =====================================\n`);
 
     return NextResponse.json(
       { 
         success: false, 
         error: ERRORS.API.SERVER_ERROR,
         code: 'INTERNAL_SERVER_ERROR',
-        responseTime
+        responseTime,
+        debug: { requestId }
       },
       { status: STATUS.SERVER_ERROR }
     );
