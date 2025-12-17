@@ -1,4 +1,13 @@
-import { createClient } from '@/lib/supabase/client';
+// lib/api.ts - DÜZELTİLMİŞ
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase client oluşturma fonksiyonu
+const createSupabaseClient = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+};
 
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -24,7 +33,7 @@ export async function generateTryOn(payload: {
   tshirtImage: string;
   generateVideo?: boolean;
 }) {
-  const supabase = createClient();
+  const supabase = createSupabaseClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -55,5 +64,17 @@ export async function generateTryOn(payload: {
     throw data ?? { error: 'request_failed' };
   }
 
+  return data;
+}
+
+// Ek fonksiyonlar için de kullanabilirsiniz
+export async function uploadImage(file: File, bucket: string) {
+  const supabase = createSupabaseClient();
+  const fileName = `${Date.now()}-${file.name}`;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(fileName, file);
+
+  if (error) throw error;
   return data;
 }
