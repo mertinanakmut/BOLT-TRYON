@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // lib/api.ts - DÜZELTİLMİŞ
 import { createClient } from '@supabase/supabase-js';
 

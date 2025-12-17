@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // middleware.ts - GÜNCELLENMİŞ VERSİYON
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';

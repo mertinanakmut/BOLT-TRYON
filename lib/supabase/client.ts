@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // lib/supabase/client.ts
 import { createClient } from '@supabase/supabase-js';
 

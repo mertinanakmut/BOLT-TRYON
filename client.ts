@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // prefer NEXT_PUBLIC_* on the client; fallback to SUPABASE_* (server) when needed

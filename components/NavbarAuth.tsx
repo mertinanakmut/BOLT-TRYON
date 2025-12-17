@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // components/NavbarAuth.tsx - VERCEL STYLE
 'use client';
 

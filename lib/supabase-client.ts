@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 // lib/supabase-client.ts - DÜZELTİLMİŞ
 import { createBrowserClient } from '@supabase/ssr';
 

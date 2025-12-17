@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Server-side helper that returns a Supabase client configured with env keys.

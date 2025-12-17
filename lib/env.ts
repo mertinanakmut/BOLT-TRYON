@@ -1,7 +1,6 @@
 // lib/env.ts
 import { z } from 'zod';
 
-// Environment variables schema
 const envSchema = z.object({
   // === Public Environment Variables ===
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -20,9 +19,12 @@ const envSchema = z.object({
   // === Rate Limiting (Optional) ===
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  
+  // === Analytics (Optional) ===
+  GOOGLE_ANALYTICS_ID: z.string().optional(),
+  SENTRY_DSN: z.string().optional(),
 });
 
-// Parse and validate environment variables
 const parsed = envSchema.safeParse({
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -34,22 +36,30 @@ const parsed = envSchema.safeParse({
   LOG_LEVEL: process.env.LOG_LEVEL,
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  GOOGLE_ANALYTICS_ID: process.env.GOOGLE_ANALYTICS_ID,
+  SENTRY_DSN: process.env.SENTRY_DSN,
 });
 
-// Throw error if validation fails
 if (!parsed.success) {
   console.error('❌ Environment variables validation failed:');
   console.error(JSON.stringify(parsed.error.format(), null, 2));
-  throw new Error('Invalid environment variables');
+  
+  // Development'da sadece warning, production'da throw
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Invalid environment variables');
+  }
 }
 
-// Export validated environment variables
-export const env = parsed.data;
+export const env = parsed.success ? parsed.data : {
+  NEXT_PUBLIC_SUPABASE_URL: '',
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+  NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
+  FAL_API_KEY: '',
+  NODE_ENV: 'development',
+  LOG_LEVEL: 'info',
+} as const;
 
-// Type for environment variables
 export type Env = z.infer<typeof envSchema>;
-
-// Helper to check if we're in production
 export const isProduction = env.NODE_ENV === 'production';
 export const isDevelopment = env.NODE_ENV === 'development';
 export const isTest = env.NODE_ENV === 'test';

@@ -1,6 +1,6 @@
 // lib/validation.ts
 import { z } from 'zod';
-import { STORAGE } from './constants';
+import { STORAGE, GARMENT_CATEGORIES } from './constants';
 
 // Base64 image validation
 const base64ImageSchema = z.string()
@@ -22,19 +22,15 @@ const base64ImageSchema = z.string()
       
       // Check base64 data length
       const base64Length = data.length;
-      const fileSize = (base64Length * 3) / 4; // Approximate size in bytes
+      const fileSize = (base64Length * 3) / 4;
       return fileSize <= STORAGE.MAX_FILE_SIZE;
     }
     
-    // Pure base64 (without data URL prefix)
+    // Pure base64
     try {
-      // Remove whitespace
       const clean = val.replace(/\s/g, '');
-      
-      // Check if it's valid base64
       if (!/^[A-Za-z0-9+/]+=*$/.test(clean)) return false;
       
-      // Decode to check size
       const binary = atob(clean);
       return binary.length <= STORAGE.MAX_FILE_SIZE;
     } catch {
@@ -50,9 +46,11 @@ export const tryOnSchema = z.object({
   tshirtImage: base64ImageSchema,
   generateVideo: z.boolean().default(false),
   options: z.object({
-    category: z.enum(['tshirt', 'dress', 'pants', 'jacket', 'shirt']).default('tshirt'),
+    category: z.enum(GARMENT_CATEGORIES).default('tshirt'),
     style: z.string().max(50).optional(),
     seed: z.number().int().min(0).max(1000000).optional(),
+    garmentColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
+    backgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
   }).optional(),
 });
 
@@ -63,6 +61,7 @@ export const passwordSchema = z.string().min(6, 'Şifre en az 6 karakter olmalı
 export const loginSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
+  rememberMe: z.boolean().optional(),
 });
 
 export const registerSchema = loginSchema.extend({
@@ -78,6 +77,7 @@ export const creditOperationSchema = z.object({
   amount: z.number().int().positive('Pozitif bir tam sayı girin').max(1000),
   operation: z.enum(['add', 'subtract', 'reset']),
   reason: z.string().max(200).optional(),
+  transactionId: z.string().optional(),
 });
 
 // Image upload schema
@@ -85,6 +85,15 @@ export const imageUploadSchema = z.object({
   image: base64ImageSchema,
   type: z.enum(['model', 'garment']),
   name: z.string().max(100).optional(),
+  category: z.enum(GARMENT_CATEGORIES).optional(),
+});
+
+// Profile update schema
+export const profileUpdateSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  avatar: base64ImageSchema.optional(),
+  language: z.enum(['tr', 'en']).optional(),
+  notifications: z.boolean().optional(),
 });
 
 // Type exports
@@ -93,3 +102,21 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type CreditOperationInput = z.infer<typeof creditOperationSchema>;
 export type ImageUploadInput = z.infer<typeof imageUploadSchema>;
+export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+
+// Helper functions
+export function validateBase64Image(base64: string): boolean {
+  try {
+    return base64ImageSchema.safeParse(base64).success;
+  } catch {
+    return false;
+  }
+}
+
+export function sanitizeInput(input: string): string {
+  return input
+    .replace(/[<>]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+=/gi, '')
+    .trim();
+}
