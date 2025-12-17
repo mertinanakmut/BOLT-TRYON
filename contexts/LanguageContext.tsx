@@ -1,4 +1,4 @@
-// contexts/LanguageContext.tsx
+// contexts/LanguageContext.tsx - EKSİKLER TAMAMLANDI
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -30,6 +30,8 @@ const translations = {
     'user.preferences': 'Tercihler',
     'user.help': 'Yardım Merkezi',
     'user.language': 'Dil',
+    'user.memberSince': 'Üyelik tarihi',
+    'user.settingsMore': 'Ayarlar & daha fazlası',
     
     // Headers
     'header.generate': 'Muhteşem Denemeler Oluştur',
@@ -50,6 +52,9 @@ const translations = {
     'stats.availableCredits': 'Kullanılabilir Krediler',
     'stats.of': 'kredi mevcut',
     'stats.upgrade': 'Planı yükselt',
+    'stats.fromLastMonth': 'geçen aydan',
+    'stats.realTimeProcessing': 'Gerçek zamanlı işleme',
+    'stats.aiPowered': 'AI Destekli',
     
     // Features
     'features.ai': 'AI Destekli Sihir',
@@ -58,6 +63,7 @@ const translations = {
     'features.fastDesc': 'Optimize edilmiş bulut altyapımızla 30 saniyenin altında sonuç üretin',
     'features.security': 'Kurumsal Güvenlik',
     'features.securityDesc': 'Askeri seviye şifreleme ve 24 saat sonra otomatik veri silme',
+    'features.showcase': 'Özellikler',
     
     // Buttons
     'buttons.upgrade': 'Premium\'a Yükselt',
@@ -69,7 +75,6 @@ const translations = {
     'buttons.save': 'Kaydet',
     'buttons.login': 'Giriş Yap',
     'buttons.register': 'Kayıt Ol',
-
     
     // Footer
     'footer.copyright': 'Vogue AI Studio',
@@ -88,6 +93,21 @@ const translations = {
     'common.yes': 'Evet',
     'common.no': 'Hayır',
     'common.confirm': 'Onayla',
+    
+    // App
+    'app.title': 'Vogue AI',
+    'mobile.virtualStudio': 'Sanal Stüdyo',
+    'mobile.menu': 'Menü',
+    
+    // Sidebar
+    'sidebar.collapse': 'Kenar çubuğunu daralt',
+    'sidebar.expand': 'Kenar çubuğunu genişlet',
+    
+    // Mode
+    'mode.light': 'Açık Mod',
+    'mode.dark': 'Koyu Mod',
+    'mode.switchLight': 'Açık moda geç',
+    'mode.switchDark': 'Koyu moda geç',
     
     // TryOn Client
     'tryon.modelImage': 'Model Görseli',
@@ -132,6 +152,8 @@ const translations = {
     'user.preferences': 'Preferences',
     'user.help': 'Help Center',
     'user.language': 'Language',
+    'user.memberSince': 'Member since',
+    'user.settingsMore': 'Settings & more',
     
     // Headers
     'header.generate': 'Create Stunning Try-Ons',
@@ -152,6 +174,9 @@ const translations = {
     'stats.availableCredits': 'Available Credits',
     'stats.of': 'credits available',
     'stats.upgrade': 'Upgrade plan',
+    'stats.fromLastMonth': 'from last month',
+    'stats.realTimeProcessing': 'Real-time processing',
+    'stats.aiPowered': 'AI-Powered',
     
     // Features
     'features.ai': 'AI-Powered Magic',
@@ -160,6 +185,7 @@ const translations = {
     'features.fastDesc': 'Generate results in under 30 seconds with our optimized cloud infrastructure',
     'features.security': 'Enterprise Security',
     'features.securityDesc': 'Military-grade encryption and automatic data deletion after 24 hours',
+    'features.showcase': 'Features',
     
     // Buttons
     'buttons.upgrade': 'Upgrade to Premium',
@@ -171,7 +197,6 @@ const translations = {
     'buttons.save': 'Save',
     'buttons.login': 'Login',
     'buttons.register': 'Register',
-
     
     // Footer
     'footer.copyright': 'Vogue AI Studio',
@@ -190,6 +215,21 @@ const translations = {
     'common.yes': 'Yes',
     'common.no': 'No',
     'common.confirm': 'Confirm',
+    
+    // App
+    'app.title': 'Vogue AI',
+    'mobile.virtualStudio': 'Virtual Studio',
+    'mobile.menu': 'Menu',
+    
+    // Sidebar
+    'sidebar.collapse': 'Collapse sidebar',
+    'sidebar.expand': 'Expand sidebar',
+    
+    // Mode
+    'mode.light': 'Light Mode',
+    'mode.dark': 'Dark Mode',
+    'mode.switchLight': 'Switch to light mode',
+    'mode.switchDark': 'Switch to dark mode',
     
     // TryOn Client
     'tryon.modelImage': 'Model Image',
@@ -232,13 +272,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSetLanguage = (lang: Language) => {
+    console.log('Dil değiştiriliyor:', lang);
     setLanguage(lang);
     localStorage.setItem('language', lang);
     document.documentElement.lang = lang;
   };
 
   const t = (key: string): string => {
-    return translations[language][key as keyof typeof translations[typeof language]] || key;
+    const translation = translations[language][key as keyof typeof translations[typeof language]];
+    if (!translation) {
+      console.warn(`Çeviri bulunamadı: ${key} (${language})`);
+      return key;
+    }
+    return translation;
   };
 
   return (

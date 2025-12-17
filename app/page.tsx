@@ -1,4 +1,4 @@
-// app/page.tsx - DARK MODE FIX + MULTI LANGUAGE SUPPORT
+// app/page.tsx - DARK MODE FIX + MULTI LANGUAGE SUPPORT - DÜZENLENMİŞ
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -57,6 +57,12 @@ export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
+
+  // DEBUG: Dil değişikliklerini takip et
+  useEffect(() => {
+    console.log('Dil değişti:', language);
+    console.log('Test çeviri:', t('header.generate'));
+  }, [language, t]);
 
   // Dark mode'u HTML'e uygula
   useEffect(() => {
@@ -193,6 +199,28 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
+      {/* DEBUG PANEL */}
+      <div className="fixed top-20 left-4 z-50 flex items-center gap-4 p-4 bg-gray-900 rounded-lg border border-gray-800">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setLanguage('en')}
+            className={`px-3 py-1 rounded ${language === 'en' ? 'bg-blue-600' : 'bg-gray-700'}`}
+          >
+            EN
+          </button>
+          <button
+            onClick={() => setLanguage('tr')}
+            className={`px-3 py-1 rounded ${language === 'tr' ? 'bg-blue-600' : 'bg-gray-700'}`}
+          >
+            TR
+          </button>
+        </div>
+        <div className="text-sm">
+          {language === 'en' ? 'Language' : 'Dil'}: {language} | 
+          {language === 'en' ? ' Working?' : ' Çalışıyor mu?'}: {t('common.yes')}
+        </div>
+      </div>
+
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950 text-gray-200">
         
         {/* MOBILE MENU OVERLAY */}
@@ -207,8 +235,8 @@ export default function HomePage() {
                       <Camera className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h1 className="font-bold text-lg">Vogue AI</h1>
-                      <p className="text-xs text-gray-400">Virtual Studio</p>
+                      <h1 className="font-bold text-lg">{t('app.title')}</h1>
+                      <p className="text-xs text-gray-400">{t('mobile.virtualStudio')}</p>
                     </div>
                   </div>
                   <button onClick={() => setMobileMenuOpen(false)} className="p-2 hover:bg-gray-800 rounded-lg">
@@ -275,9 +303,9 @@ export default function HomePage() {
                 {!sidebarCollapsed && (
                   <div>
                     <h1 className="font-bold text-xl bg-gradient-to-r from-purple-300 via-pink-300 to-sky-300 bg-clip-text text-transparent">
-                      Vogue AI
+                      {t('app.title')}
                     </h1>
-                    <p className="text-xs text-gray-400">Virtual Try-On Studio</p>
+                    <p className="text-xs text-gray-400">{t('mobile.virtualStudio')}</p>
                   </div>
                 )}
               </div>
@@ -286,7 +314,7 @@ export default function HomePage() {
                 <button
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                   className="p-2 rounded-lg hover:bg-gray-800/50 transition-colors glass-subtle"
-                  title="Collapse sidebar"
+                  title={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
                 >
                   <ChevronLeft className="w-4 h-4 text-gray-400" />
                 </button>
@@ -316,7 +344,7 @@ export default function HomePage() {
                       <span className="text-xs font-bold text-amber-300">PRO</span>
                     </div>
                     <span className="text-xs text-gray-500">•</span>
-                    <span className="text-xs text-gray-500">Member since 2024</span>
+                    <span className="text-xs text-gray-500">{t('user.memberSince')} 2024</span>
                   </div>
                 </div>
               </div>
@@ -424,14 +452,14 @@ export default function HomePage() {
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} p-3 rounded-xl hover:bg-gray-800/30 transition-colors`}
-                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={darkMode ? t('mode.switchLight') : t('mode.switchDark')}
               >
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-lg bg-gray-800/50">
                     {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-gray-400" />}
                   </div>
                   {!sidebarCollapsed && (
-                    <span className="text-sm">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                    <span className="text-sm">{darkMode ? t('mode.light') : t('mode.dark')}</span>
                   )}
                 </div>
                 {!sidebarCollapsed && (
@@ -507,7 +535,7 @@ export default function HomePage() {
                     {!sidebarCollapsed && (
                       <div className="text-left">
                         <p className="text-sm font-medium">{t('user.profile')}</p>
-                        <p className="text-xs text-gray-500">Settings & more</p>
+                        <p className="text-xs text-gray-500">{t('user.settingsMore')}</p>
                       </div>
                     )}
                   </div>
@@ -577,7 +605,7 @@ export default function HomePage() {
                     <Camera className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h1 className="font-bold text-lg">Vogue AI</h1>
+                    <h1 className="font-bold text-lg">{t('app.title')}</h1>
                     <div className="flex items-center space-x-2 mt-0.5">
                       <div className="flex items-center px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20">
                         <Zap className="w-3 h-3 text-amber-400 mr-1" />
@@ -591,7 +619,7 @@ export default function HomePage() {
                   <button
                     onClick={() => setDarkMode(!darkMode)}
                     className="p-2 rounded-lg hover:bg-gray-800/50"
-                    title={darkMode ? 'Light mode' : 'Dark mode'}
+                    title={darkMode ? t('mode.switchLight') : t('mode.switchDark')}
                   >
                     {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                   </button>
@@ -642,26 +670,20 @@ export default function HomePage() {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <div className="flex-1">
                     <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/20 mb-4">
-                      <span className="text-xs font-medium text-purple-300">AI-POWERED</span>
+                      <span className="text-xs font-medium text-purple-300">{t('stats.aiPowered')}</span>
                       <div className="w-1 h-1 rounded-full bg-purple-500"></div>
-                      <span className="text-xs text-gray-400">Real-time processing</span>
+                      <span className="text-xs text-gray-400">{t('stats.realTimeProcessing')}</span>
                     </div>
                     
                     <h1 className="heading-1 mb-4">
                       {activeTab === 'generate' && (
-                        <>
-                          {t('header.generate')}
-                        </>
+                        <>{t('header.generate')}</>
                       )}
                       {activeTab === 'history' && (
-                        <>
-                          {t('header.history')}
-                        </>
+                        <>{t('header.history')}</>
                       )}
                       {activeTab === 'compare' && (
-                        <>
-                          {t('header.compare')}
-                        </>
+                        <>{t('header.compare')}</>
                       )}
                     </h1>
                     
@@ -725,7 +747,7 @@ export default function HomePage() {
                         <span className={`text-xs ${stat.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
                           {stat.change}
                         </span>
-                        <span className="text-xs text-gray-500 ml-2">from last month</span>
+                        <span className="text-xs text-gray-500 ml-2">{t('stats.fromLastMonth')}</span>
                       </div>
                     </div>
                   );
