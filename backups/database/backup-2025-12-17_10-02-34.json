@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "timestamp": "2025-12-17T07:02:34.139Z",
+    "project": "mert-app",
+    "backup_type": "supabase",
+    "version": "1.0"
+  },
+  "tables": [
+    "profiles"
+  ],
+  "data": {
+    "profiles": [
+      {
+        "id": "6db40ad8-809b-43af-a54c-0df345be3165",
+        "credits": 3,
+        "created_at": "2025-12-14T19:45:50.751433+00:00",
+        "updated_at": "2025-12-14T19:45:50.751433+00:00"
+      },
+      {
+        "id": "6acee080-0e42-433b-a2ed-2c279a82e26d",
+        "credits": 3,
+        "created_at": "2025-12-16T03:59:23.796455+00:00",
+        "updated_at": "2025-12-16T03:59:23.796455+00:00"
+      },
+      {
+        "id": "7b2039d5-dbf9-4eb0-aaf2-732f34aec3f9",
+        "credits": 3,
+        "created_at": "2025-12-16T00:38:43.018551+00:00",
+        "updated_at": "2025-12-16T04:00:13.121898+00:00"
+      },
+      {
+        "id": "0592285f-a9fb-499f-8da4-6016bb767604",
+        "credits": 3,
+        "created_at": "2025-12-16T22:57:34.672735+00:00",
+        "updated_at": "2025-12-17T05:45:14.060387+00:00"
+      }
+    ],
+    "tryon_history": [],
+    "credits": {
+      "code": "PGRST205",
+      "details": null,
+      "hint": "Perhaps you meant the table 'public.profiles'",
+      "message": "Could not find the table 'public.credits' in the schema cache"
+    },
+    "sessions": {
+      "code": "PGRST205",
+      "details": null,
+      "hint": null,
+      "message": "Could not find the table 'public.sessions' in the schema cache"
+    }
+  }
+}
