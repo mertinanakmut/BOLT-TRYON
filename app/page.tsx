@@ -217,7 +217,6 @@ export default function HomePage() {
         </div>
         <div className="text-sm">
           {language === 'en' ? 'Language' : 'Dil'}: {language} | 
-// //           {language === 'en' ? ' Working?' : ' Çalışıyor mu?'}: {t('common.yes')}
         </div>
       </div>
 
