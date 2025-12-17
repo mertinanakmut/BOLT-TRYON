@@ -1,18 +1,35 @@
 // components/Spinner.tsx
-interface SpinnerProps {
-  size?: 'sm' | 'md' | 'lg';
+import React from 'react'
+import { cn } from '@/lib/utils'
+
+interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
+  size?: 'sm' | 'md' | 'lg'
+  className?: string
 }
 
-export function Spinner({ size = 'md' }: SpinnerProps) {
+export default function Spinner({ 
+  size = 'md', 
+  className, 
+  ...props 
+}: SpinnerProps) {
   const sizeClasses = {
-    sm: 'w-4 h-4',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8'
-  };
+    sm: 'h-4 w-4',
+    md: 'h-8 w-8',
+    lg: 'h-12 w-12'
+  }
 
   return (
-    <div className={`animate-spin rounded-full border-2 border-current border-t-transparent ${sizeClasses[size]}`}>
-      <span className="sr-only">Loading...</span>
+    <div 
+      role="status" 
+      className={cn('inline-flex items-center justify-center', className)}
+      {...props}
+    >
+      <div className={cn(
+        'animate-spin rounded-full border-2 border-current border-t-transparent',
+        sizeClasses[size]
+      )}>
+        <span className="sr-only">Loading...</span>
+      </div>
     </div>
-  );
+  )
 }
