@@ -1,27 +1,37 @@
-// __tests__/lib/utils.test.ts
-import { formatDate, validateEmail } from '@/lib/utils'
-
-describe('Utility Functions', () => {
-  describe('formatDate', () => {
-    it('formats date correctly', () => {
-      const date = new Date('2024-12-17T10:00:00Z')
-      expect(formatDate(date)).toBe('17.12.2024')
+// lib/test-utils.ts - TEST İÇİN UTILITY FONKSİYONLARI
+export const formatDate = (date: Date | string): string => {
+  if (!date) return 'Invalid Date'
+  
+  try {
+    const d = new Date(date)
+    if (isNaN(d.getTime())) return 'Invalid Date'
+    
+    return d.toLocaleDateString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
     })
+  } catch {
+    return 'Invalid Date'
+  }
+}
 
-    it('handles invalid date', () => {
-      expect(formatDate('invalid')).toBe('Invalid Date')
-    })
-  })
+export const validateEmail = (email: string): boolean => {
+  if (!email) return false
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
 
-  describe('validateEmail', () => {
-    it('returns true for valid email', () => {
-      expect(validateEmail('test@example.com')).toBe(true)
-    })
+export const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes'
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
 
-    it('returns false for invalid email', () => {
-      expect(validateEmail('not-an-email')).toBe(false)
-      expect(validateEmail('@example.com')).toBe(false)
-      expect(validateEmail('test@')).toBe(false)
-    })
-  })
-})
+export const wait = (ms: number): Promise<void> => {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}

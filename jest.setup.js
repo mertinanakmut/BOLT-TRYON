@@ -1,29 +1,24 @@
+// jest.setup.js
 import '@testing-library/jest-dom'
 
-// Mock fetch
+// Global mocks
 global.fetch = jest.fn()
 
-// Mock Next.js router
-const mockRouter = {
-  push: jest.fn(),
-  replace: jest.fn(),
-  prefetch: jest.fn(),
-  back: jest.fn(),
-  forward: jest.fn(),
-  refresh: jest.fn(),
-}
-
+// Mock Next.js
 jest.mock('next/navigation', () => ({
-  useRouter: () => mockRouter,
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+    back: jest.fn(),
+  }),
   useSearchParams: () => ({
     get: jest.fn(),
-    toString: jest.fn(() => ''),
   }),
   usePathname: () => '',
-  useParams: () => ({}),
 }))
 
-// Mock Next.js image
+// Mock Next.js Image
 jest.mock('next/image', () => ({
   __esModule: true,
   default: (props) => {
@@ -32,10 +27,14 @@ jest.mock('next/image', () => ({
   },
 }))
 
-// Clear mocks after each test
+// Mock environment variables for tests
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
+process.env.FAL_API_KEY = 'test-fal-key'
+process.env.NODE_ENV = 'test'
+
+// Clear all mocks after each test
 afterEach(() => {
   jest.clearAllMocks()
-  if (global.fetch.mockClear) {
-    global.fetch.mockClear()
-  }
 })
