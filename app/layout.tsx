@@ -1,4 +1,4 @@
-// app/layout.tsx - SON HALİ
+// app/layout.tsx - DÜZENLENMİŞ
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';

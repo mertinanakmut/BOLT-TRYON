@@ -1,4 +1,4 @@
-// contexts/LanguageContext.tsx - EKSİKLER TAMAMLANDI
+// contexts/LanguageContext.tsx - TÜM EKSİKLER TAMAMLANDI
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -75,6 +75,7 @@ const translations = {
     'buttons.save': 'Kaydet',
     'buttons.login': 'Giriş Yap',
     'buttons.register': 'Kayıt Ol',
+    'buttons.back': 'Stüdyoya Geri Dön',
     
     // Footer
     'footer.copyright': 'Vogue AI Studio',
@@ -133,6 +134,55 @@ const translations = {
     'upgrade.creditsIncluded': 'kredi dahil',
     'upgrade.upgradeNow': 'Hemen Yükselt',
     'upgrade.contactSales': 'Satış Ekibiyle İletişime Geçin',
+    'upgrade.experience': 'Deneyiminizi yükseltin',
+    'upgrade.creativePower': 'Yaratıcı Gücünüzü',
+    'upgrade.success': 'Başarıyla yükseltildi',
+    'upgrade.plan': 'planına',
+    'upgrade.failed': 'Yükseltme başarısız. Lütfen tekrar deneyin.',
+    'upgrade.forever': 'süresiz',
+    'upgrade.perMonth': 'aylık',
+    'upgrade.freeTier': 'Ücretsiz Seviye',
+    'upgrade.needHelp': 'Plan seçiminde yardıma mı ihtiyacınız var?',
+    'upgrade.contactSupport': 'Destek Ekibiyle İletişime Geçin',
+    
+    // Upgrade Features
+    'upgrade.features.free.credits': '5 ücretsiz kredi aylık',
+    'upgrade.features.free.generation': 'Temel görüntü oluşturma',
+    'upgrade.features.free.resolution': 'Standart çözünürlük',
+    'upgrade.features.free.support': 'Topluluk desteği',
+    'upgrade.features.free.retention': '7 gün geçmiş saklama',
+    
+    'upgrade.features.pro.credits': '100 kredi aylık',
+    'upgrade.features.pro.generation': 'HD görüntü oluşturma',
+    'upgrade.features.pro.video': 'Video oluşturma',
+    'upgrade.features.pro.support': 'Öncelikli destek',
+    'upgrade.features.pro.retention': '30 gün geçmiş saklama',
+    'upgrade.features.pro.batch': 'Toplu işleme',
+    'upgrade.features.pro.api': 'API erişimi',
+    
+    'upgrade.features.enterprise.credits': '1000 kredi aylık',
+    'upgrade.features.enterprise.generation': '4K görüntü oluşturma',
+    'upgrade.features.enterprise.video': 'Sınırsız video oluşturma',
+    'upgrade.features.enterprise.support': '7/24 özel destek',
+    'upgrade.features.enterprise.history': 'Sınırsız geçmiş',
+    'upgrade.features.enterprise.models': 'Özel AI modelleri',
+    'upgrade.features.enterprise.whiteLabel': 'White-label çözümü',
+    'upgrade.features.enterprise.team': 'Takım yönetimi',
+    
+    // Upgrade FAQ
+    'upgrade.faq.title': 'Sıkça Sorulan Sorular',
+    'upgrade.faq.credits.question': 'Kullanılmayan kredilerime ne olur?',
+    'upgrade.faq.credits.answer': 'Pro ve Enterprise planlarında kullanılmayan krediler sonraki aya aktarılır. Ücretsiz plan kredileri aylık olarak sıfırlanır.',
+    'upgrade.faq.cancel.question': 'İstediğim zaman iptal edebilir miyim?',
+    'upgrade.faq.cancel.answer': 'Evet! Aboneliğinizi istediğiniz zaman iptal edebilirsiniz. Faturalandırma döneminizin sonuna kadar erişiminiz devam eder.',
+    'upgrade.faq.refunds.question': 'İade sunuyor musunuz?',
+    'upgrade.faq.refunds.answer': 'Memnun kalmazsanız tüm ücretli planlar için 14 günlük para iade garantisi sunuyoruz.',
+    'upgrade.faq.change.question': 'Planımı yükseltebilir/indirgeyebilir miyim?',
+    'upgrade.faq.change.answer': 'Evet, planınızı istediğiniz zaman değiştirebilirsiniz. Değişiklikler anında geçerli olur.',
+    
+    // Upgrade Footer
+    'upgrade.footer.poweredBy': 'Virtual Try-On Studio • Fal AI tarafından desteklenmektedir • Stripe ile güvenli ödemeler',
+    'upgrade.footer.rights': 'Tüm hakları saklıdır.',
   },
   en: {
     // Navigation
@@ -197,6 +247,7 @@ const translations = {
     'buttons.save': 'Save',
     'buttons.login': 'Login',
     'buttons.register': 'Register',
+    'buttons.back': 'Back to Studio',
     
     // Footer
     'footer.copyright': 'Vogue AI Studio',
@@ -255,6 +306,55 @@ const translations = {
     'upgrade.creditsIncluded': 'credits included',
     'upgrade.upgradeNow': 'Upgrade Now',
     'upgrade.contactSales': 'Contact Sales',
+    'upgrade.experience': 'Upgrade your experience',
+    'upgrade.creativePower': 'Creative Power',
+    'upgrade.success': 'Successfully upgraded to',
+    'upgrade.plan': 'plan',
+    'upgrade.failed': 'Upgrade failed. Please try again.',
+    'upgrade.forever': 'forever',
+    'upgrade.perMonth': 'per month',
+    'upgrade.freeTier': 'Free Tier',
+    'upgrade.needHelp': 'Need help choosing a plan?',
+    'upgrade.contactSupport': 'Contact Support Team',
+    
+    // Upgrade Features
+    'upgrade.features.free.credits': '5 free credits monthly',
+    'upgrade.features.free.generation': 'Basic image generation',
+    'upgrade.features.free.resolution': 'Standard resolution',
+    'upgrade.features.free.support': 'Community support',
+    'upgrade.features.free.retention': '7-day history retention',
+    
+    'upgrade.features.pro.credits': '100 credits monthly',
+    'upgrade.features.pro.generation': 'HD image generation',
+    'upgrade.features.pro.video': 'Video generation',
+    'upgrade.features.pro.support': 'Priority support',
+    'upgrade.features.pro.retention': '30-day history retention',
+    'upgrade.features.pro.batch': 'Batch processing',
+    'upgrade.features.pro.api': 'API access',
+    
+    'upgrade.features.enterprise.credits': '1000 credits monthly',
+    'upgrade.features.enterprise.generation': '4K image generation',
+    'upgrade.features.enterprise.video': 'Unlimited video generation',
+    'upgrade.features.enterprise.support': '24/7 dedicated support',
+    'upgrade.features.enterprise.history': 'Unlimited history',
+    'upgrade.features.enterprise.models': 'Custom AI models',
+    'upgrade.features.enterprise.whiteLabel': 'White-label solution',
+    'upgrade.features.enterprise.team': 'Team management',
+    
+    // Upgrade FAQ
+    'upgrade.faq.title': 'Frequently Asked Questions',
+    'upgrade.faq.credits.question': 'What happens to my unused credits?',
+    'upgrade.faq.credits.answer': 'Unused credits roll over to the next month for Pro and Enterprise plans. Free plan credits reset monthly.',
+    'upgrade.faq.cancel.question': 'Can I cancel anytime?',
+    'upgrade.faq.cancel.answer': 'Yes! You can cancel your subscription anytime. You\'ll keep access until the end of your billing period.',
+    'upgrade.faq.refunds.question': 'Do you offer refunds?',
+    'upgrade.faq.refunds.answer': 'We offer a 14-day money-back guarantee for all paid plans if you\'re not satisfied.',
+    'upgrade.faq.change.question': 'Can I upgrade/downgrade my plan?',
+    'upgrade.faq.change.answer': 'Yes, you can change your plan at any time. Changes take effect immediately.',
+    
+    // Upgrade Footer
+    'upgrade.footer.poweredBy': 'Virtual Try-On Studio • Powered by Fal AI • Secure payments with Stripe',
+    'upgrade.footer.rights': 'All rights reserved.',
   }
 };
 
