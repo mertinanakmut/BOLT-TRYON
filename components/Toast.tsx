@@ -1,4 +1,4 @@
-// components/Toast.tsx - Optimize edilmiş versiyon
+// components/Toast.tsx - GÜVENLİ VERSİYON
 'use client';
 
 import { createContext, useContext, useState, useCallback, ReactNode, useMemo } from 'react';
@@ -16,18 +16,20 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+// GÜVENLİ useToast hook'u
 export function useToast() {
   const context = useContext(ToastContext);
-  if (!context) {
-    console.warn('useToast was called outside ToastProvider. Make sure ToastProvider is in your layout.');
-    // Fallback fonksiyon - hata vermek yerine çalışır
-    return {
-      showToast: (message: string, type: 'success' | 'error') => {
-        console.log(`Toast (fallback): ${message}`, type);
-      }
-    };
-  }
-  return context;
+  
+  // Fallback fonksiyon - her zaman çalışsın
+  const fallbackToast = useCallback((message: string, type: 'success' | 'error' = 'info') => {
+    console.log(`Toast: ${message}`, type);
+    // Tarayıcı bildirimi olarak göster (geliştirme için)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Toast] ${type.toUpperCase()}: ${message}`);
+    }
+  }, []);
+  
+  return context || { showToast: fallbackToast };
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {

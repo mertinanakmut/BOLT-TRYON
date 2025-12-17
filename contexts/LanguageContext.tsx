@@ -67,6 +67,9 @@ const translations = {
     'buttons.delete': 'Sil',
     'buttons.cancel': 'İptal',
     'buttons.save': 'Kaydet',
+    'buttons.login': 'Giriş Yap',
+    'buttons.register': 'Kayıt Ol',
+
     
     // Footer
     'footer.copyright': 'Vogue AI Studio',
@@ -166,6 +169,9 @@ const translations = {
     'buttons.delete': 'Delete',
     'buttons.cancel': 'Cancel',
     'buttons.save': 'Save',
+    'buttons.login': 'Login',
+    'buttons.register': 'Register',
+
     
     // Footer
     'footer.copyright': 'Vogue AI Studio',

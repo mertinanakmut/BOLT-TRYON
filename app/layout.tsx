@@ -1,9 +1,9 @@
-// app/layout.tsx - DARK MODE FIX + MULTI LANGUAGE
+// app/layout.tsx - SON HALİ
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { LanguageProvider } from '@/contexts/LanguageContext';
-import { ToastProvider } from '@/components/Toast'; // ToastProvider'ı import edin
+import { ToastProvider } from '@/components/Toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,12 +19,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.className} bg-gray-950 text-gray-200`}>
-        <LanguageProvider>
-          <ToastProvider> {/* ToastProvider ile sarmalayın */}
+      <body className={`${inter.className} bg-gray-950 text-gray-200 min-h-screen`}>
+        <ToastProvider>
+          <LanguageProvider>
             {children}
-          </ToastProvider>
-        </LanguageProvider>
+          </LanguageProvider>
+        </ToastProvider>
       </body>
     </html>
   );
