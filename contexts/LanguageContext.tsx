@@ -1,4 +1,4 @@
-// contexts/LanguageContext.tsx - TÜM EKSİKLER TAMAMLANDI
+// contexts/LanguageContext.tsx - OPTİMİZE EDİLMİŞ VERSİYON
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -361,24 +361,31 @@ const translations = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en');
+  // Başlangıç state'ini tanımla (SSR uyumlu)
+  const [language, setLanguageState] = useState<Language>('en');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Check localStorage for saved language
+    // Sadece client-side'da localStorage kontrol et
     const savedLang = localStorage.getItem('language') as Language;
     if (savedLang && (savedLang === 'tr' || savedLang === 'en')) {
-      setLanguage(savedLang);
+      setLanguageState(savedLang);
+      document.documentElement.lang = savedLang;
     }
+    setIsInitialized(true);
   }, []);
 
   const handleSetLanguage = (lang: Language) => {
     console.log('Dil değiştiriliyor:', lang);
-    setLanguage(lang);
+    setLanguageState(lang);
     localStorage.setItem('language', lang);
     document.documentElement.lang = lang;
   };
 
   const t = (key: string): string => {
+    // İlk yükleme tamamlanana kadar key döndür
+    if (!isInitialized) return key;
+    
     const translation = translations[language][key as keyof typeof translations[typeof language]];
     if (!translation) {
       console.warn(`Çeviri bulunamadı: ${key} (${language})`);
@@ -388,7 +395,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: handleSetLanguage, t }}>
+    <LanguageContext.Provider value={{ 
+      language, 
+      setLanguage: handleSetLanguage, 
+      t 
+    }}>
       {children}
     </LanguageContext.Provider>
   );

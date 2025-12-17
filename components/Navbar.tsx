@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { createServerClient } from "@/lib/supabase-server";
 import NavbarAuth from "@/components/NavbarAuth";
-import LanguageSwitcher from "@/components/LanguageSwitcher"; // Yeni component
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 export default async function Navbar() {
   const supabase = createServerClient();
@@ -31,7 +31,7 @@ export default async function Navbar() {
       </div>
       
       <div className="flex items-center gap-4">
-        {/* Dil değiştirme butonu - her zaman göster */}
+        {/* Dil değiştirme butonu */}
         <LanguageSwitcher />
         
         {/* Auth component'i */}
