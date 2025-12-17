@@ -1,26 +1,27 @@
-import './globals.css';
+// app/layout.tsx - DARK MODE FIX + MULTI LANGUAGE
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { ToastProvider } from '@/components/Toast';
+import './globals.css';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Virtual Try-On Studio',
-  description: 'Create stunning virtual try-on previews with AI-powered image generation',
+  title: 'Vogue AI - Virtual Try-On Studio',
+  description: 'AI-powered virtual try-on platform with professional results',
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <ToastProvider>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`${inter.className} bg-gray-950 text-gray-200`}>
+        <LanguageProvider>
           {children}
-        </ToastProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

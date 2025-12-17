@@ -1,4 +1,4 @@
-// app/page.tsx - PROFESYONEL & ELİT TASARIM (YAN MENÜLÜ)
+// app/page.tsx - DARK MODE FIX + MULTI LANGUAGE SUPPORT
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -8,6 +8,7 @@ import { HistoryGrid } from '@/components/HistoryGrid';
 import { CompareView } from '@/components/CompareView';
 import { LogoutButton } from '@/components/LogoutButton';
 import { Spinner } from '@/components/Spinner';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { 
   Palette, 
   History, 
@@ -37,10 +38,13 @@ import {
   Users,
   FileText,
   MessageSquare,
-  Heart
+  Heart,
+  Globe2,
+  Check
 } from 'lucide-react';
 
 export default function HomePage() {
+  const { language, setLanguage, t } = useLanguage();
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -48,9 +52,35 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'generate' | 'history' | 'compare'>('generate');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+
+  // Dark mode'u HTML'e uygula
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  // Click outside handlers
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+      if (languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
+        setShowLanguageMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -93,18 +123,6 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Click outside to close user menu
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
-        setShowUserMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950 flex items-center justify-center">
@@ -112,11 +130,8 @@ export default function HomePage() {
           <div className="relative">
             <div className="w-20 h-20 rounded-full border-2 border-gray-800"></div>
             <div className="absolute inset-0 w-20 h-20 rounded-full border-2 border-transparent border-t-purple-500 animate-spin"></div>
-            <div className="absolute inset-0 w-20 h-20 rounded-full border-2 border-transparent border-r-indigo-500 animate-spin" style={{ animationDelay: '0.1s' }}></div>
-            <div className="absolute inset-0 w-20 h-20 rounded-full border-2 border-transparent border-b-sky-500 animate-spin" style={{ animationDelay: '0.2s' }}></div>
           </div>
-          <p className="mt-8 text-gray-300 text-lg font-medium animate-pulse">Initializing Studio...</p>
-          <p className="mt-2 text-sm text-gray-500">Loading your creative environment</p>
+          <p className="mt-8 text-gray-300 text-lg font-medium animate-pulse">{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -130,49 +145,54 @@ export default function HomePage() {
   const tabs = [
     { 
       id: 'generate', 
-      label: 'Generate', 
+      label: t('nav.generate'), 
       icon: Palette, 
-      description: 'Create AI try-ons',
+      description: t('nav.generateDesc'),
       color: 'from-purple-500 to-pink-500'
     },
     { 
       id: 'history', 
-      label: 'History', 
+      label: t('nav.history'), 
       icon: History, 
-      description: 'View past creations',
+      description: t('nav.historyDesc'),
       color: 'from-blue-500 to-cyan-400'
     },
     { 
       id: 'compare', 
-      label: 'Compare', 
+      label: t('nav.compare'), 
       icon: GitCompare, 
-      description: 'Side-by-side analysis',
+      description: t('nav.compareDesc'),
       color: 'from-emerald-500 to-green-400'
     },
   ];
 
   // User menu items
   const userMenuItems = [
-    { label: 'My Profile', icon: User, href: '#', badge: null },
-    { label: 'Billing & Plans', icon: CreditCard, href: '/upgrade', badge: 'Pro' },
-    { label: 'Analytics', icon: BarChart3, href: '#', badge: null },
-    { label: 'Notifications', icon: Bell, href: '#', badge: '3' },
-    { label: 'Security', icon: Shield, href: '#', badge: null },
-    { label: 'Preferences', icon: Settings, href: '#', badge: null },
-    { label: 'Help Center', icon: HelpCircle, href: '#', badge: null },
-    { label: 'Language', icon: Globe, href: '#', badge: 'EN' },
+    { label: t('user.profile'), icon: User, href: '#', badge: null },
+    { label: t('user.billing'), icon: CreditCard, href: '/upgrade', badge: 'Pro' },
+    { label: t('user.analytics'), icon: BarChart3, href: '#', badge: null },
+    { label: t('user.notifications'), icon: Bell, href: '#', badge: '3' },
+    { label: t('user.security'), icon: Shield, href: '#', badge: null },
+    { label: t('user.preferences'), icon: Settings, href: '#', badge: null },
+    { label: t('user.help'), icon: HelpCircle, href: '#', badge: null },
   ];
 
   // Stats data
   const userStats = [
-    { label: 'Generations', value: '24', icon: Sparkles, change: '+12%' },
-    { label: 'Credits Used', value: '156', icon: Zap, change: '-5%' },
-    { label: 'Downloads', value: '89', icon: Download, change: '+23%' },
-    { label: 'Favorites', value: '12', icon: Heart, change: '+8%' },
+    { label: t('stats.generations'), value: '24', icon: Sparkles, change: '+12%' },
+    { label: t('stats.creditsUsed'), value: '156', icon: Zap, change: '-5%' },
+    { label: t('stats.downloads'), value: '89', icon: Download, change: '+23%' },
+    { label: t('stats.favorites'), value: '12', icon: Heart, change: '+8%' },
+  ];
+
+  // Languages
+  const languages = [
+    { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
+    { code: 'en', name: 'English', flag: '🇺🇸' },
   ];
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'dark' : ''}`}>
+    <div className="min-h-screen">
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950 text-gray-200">
         
         {/* MOBILE MENU OVERLAY */}
@@ -184,7 +204,7 @@ export default function HomePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
-                      <Sparkles className="w-5 h-5 text-white" />
+                      <Camera className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <h1 className="font-bold text-lg">Vogue AI</h1>
@@ -359,7 +379,7 @@ export default function HomePage() {
             <div className="p-6 border-t border-gray-800">
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-gray-400">Credits Balance</span>
+                  <span className="text-sm text-gray-400">{t('stats.credits')}</span>
                   <span className="text-lg font-bold text-gradient">{credits}</span>
                 </div>
                 <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -369,7 +389,7 @@ export default function HomePage() {
                   ></div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2 text-right">
-                  {credits} of 50 credits available
+                  {credits} {t('stats.of')}
                 </p>
               </div>
               
@@ -397,7 +417,7 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Bottom Section - User Menu & Settings */}
+          {/* Bottom Section - Settings */}
           <div className="p-4 border-t border-gray-800">
             <div className={`${sidebarCollapsed ? 'flex flex-col items-center space-y-3' : 'space-y-3'}`}>
               {/* Dark Mode Toggle */}
@@ -411,7 +431,7 @@ export default function HomePage() {
                     {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-gray-400" />}
                   </div>
                   {!sidebarCollapsed && (
-                    <span className="text-sm">Dark Mode</span>
+                    <span className="text-sm">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
                   )}
                 </div>
                 {!sidebarCollapsed && (
@@ -421,7 +441,58 @@ export default function HomePage() {
                 )}
               </button>
 
-              {/* User Menu Trigger */}
+              {/* Language Selector */}
+              <div className="relative" ref={languageMenuRef}>
+                <button
+                  onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+                  className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} w-full p-3 rounded-xl hover:bg-gray-800/30 transition-colors`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 rounded-lg bg-gray-800/50">
+                      <Globe2 className="w-4 h-4 text-gray-400" />
+                    </div>
+                    {!sidebarCollapsed && (
+                      <div className="text-left">
+                        <p className="text-sm">{t('user.language')}</p>
+                        <p className="text-xs text-gray-500">
+                          {language === 'tr' ? 'Türkçe' : 'English'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {!sidebarCollapsed && (
+                    <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${showLanguageMenu ? 'rotate-90' : ''}`} />
+                  )}
+                </button>
+
+                {/* Language Dropdown */}
+                {showLanguageMenu && !sidebarCollapsed && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 glass-panel rounded-2xl border border-gray-800 shadow-2xl animate-fadeIn">
+                    <div className="p-2">
+                      {languages.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => {
+                            setLanguage(lang.code as 'tr' | 'en');
+                            setShowLanguageMenu(false);
+                          }}
+                          className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl hover:bg-gray-800/30 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span className="text-lg">{lang.flag}</span>
+                            <span className="text-sm">{lang.name}</span>
+                          </div>
+                          {language === lang.code && (
+                            <Check className="w-4 h-4 text-green-400" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* User Menu */}
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
@@ -432,11 +503,10 @@ export default function HomePage() {
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-400 flex items-center justify-center">
                         <User className="w-4 h-4 text-white" />
                       </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-gray-900"></div>
                     </div>
                     {!sidebarCollapsed && (
                       <div className="text-left">
-                        <p className="text-sm font-medium">Account</p>
+                        <p className="text-sm font-medium">{t('user.profile')}</p>
                         <p className="text-xs text-gray-500">Settings & more</p>
                       </div>
                     )}
@@ -484,19 +554,6 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-          
-          {/* Collapse/Expand Button (for collapsed state) */}
-          {sidebarCollapsed && (
-            <div className="p-4 border-t border-gray-800">
-              <button
-                onClick={() => setSidebarCollapsed(false)}
-                className="w-full flex justify-center p-2 rounded-lg hover:bg-gray-800/30 transition-colors"
-                title="Expand sidebar"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
-            </div>
-          )}
         </aside>
 
         {/* MAIN CONTENT AREA */}
@@ -534,6 +591,7 @@ export default function HomePage() {
                   <button
                     onClick={() => setDarkMode(!darkMode)}
                     className="p-2 rounded-lg hover:bg-gray-800/50"
+                    title={darkMode ? 'Light mode' : 'Dark mode'}
                   >
                     {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                   </button>
@@ -544,7 +602,6 @@ export default function HomePage() {
                     <span className="text-white text-sm font-medium">
                       {user.email?.charAt(0).toUpperCase()}
                     </span>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-gray-900"></div>
                   </button>
                 </div>
               </div>
@@ -593,25 +650,25 @@ export default function HomePage() {
                     <h1 className="heading-1 mb-4">
                       {activeTab === 'generate' && (
                         <>
-                          Create <span className="text-gradient">Stunning</span> Try-Ons
+                          {t('header.generate')}
                         </>
                       )}
                       {activeTab === 'history' && (
                         <>
-                          Your <span className="text-gradient">Creative</span> History
+                          {t('header.history')}
                         </>
                       )}
                       {activeTab === 'compare' && (
                         <>
-                          Compare & <span className="text-gradient">Analyze</span>
+                          {t('header.compare')}
                         </>
                       )}
                     </h1>
                     
                     <p className="body-large text-gray-400 max-w-3xl">
-                      {activeTab === 'generate' && 'Upload model and garment images to generate photorealistic virtual try-ons powered by advanced AI algorithms.'}
-                      {activeTab === 'history' && 'Browse through your previous generations, manage your creations, and export your favorite results.'}
-                      {activeTab === 'compare' && 'Select multiple generations to analyze them side-by-side, compare details, and make informed decisions.'}
+                      {activeTab === 'generate' && t('desc.generate')}
+                      {activeTab === 'history' && t('desc.history')}
+                      {activeTab === 'compare' && t('desc.compare')}
                     </p>
                   </div>
                   
@@ -620,7 +677,7 @@ export default function HomePage() {
                     <div className="glass-card p-5">
                       <div className="flex items-center justify-between mb-4">
                         <div>
-                          <p className="text-sm text-gray-400">Available Credits</p>
+                          <p className="text-sm text-gray-400">{t('stats.availableCredits')}</p>
                           <p className="text-3xl font-bold text-gradient">{credits}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500/20 to-yellow-500/20">
@@ -634,7 +691,7 @@ export default function HomePage() {
                         ></div>
                       </div>
                       <p className="text-xs text-gray-500 mt-2">
-                        {credits} credits remaining • <a href="/upgrade" className="text-purple-400 hover:text-purple-300">Upgrade plan</a>
+                        {credits} {t('stats.of')} • <a href="/upgrade" className="text-purple-400 hover:text-purple-300">{t('stats.upgrade')}</a>
                       </p>
                     </div>
                     
@@ -643,7 +700,7 @@ export default function HomePage() {
                       className="btn-primary flex items-center justify-center space-x-2 py-3"
                     >
                       <Sparkles className="w-5 h-5" />
-                      <span>Upgrade to Premium</span>
+                      <span>{t('buttons.upgrade')}</span>
                     </a>
                   </div>
                 </div>
@@ -692,9 +749,9 @@ export default function HomePage() {
                       <Sparkles className="w-6 h-6 text-purple-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">AI-Powered Magic</h3>
+                      <h3 className="font-semibold mb-2">{t('features.ai')}</h3>
                       <p className="text-sm text-gray-400">
-                        Advanced neural networks create photorealistic results with perfect fitting and lighting
+                        {t('features.aiDesc')}
                       </p>
                     </div>
                   </div>
@@ -706,9 +763,9 @@ export default function HomePage() {
                       <Zap className="w-6 h-6 text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Lightning Fast</h3>
+                      <h3 className="font-semibold mb-2">{t('features.fast')}</h3>
                       <p className="text-sm text-gray-400">
-                        Generate results in under 30 seconds with our optimized cloud infrastructure
+                        {t('features.fastDesc')}
                       </p>
                     </div>
                   </div>
@@ -720,9 +777,9 @@ export default function HomePage() {
                       <Shield className="w-6 h-6 text-green-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Enterprise Security</h3>
+                      <h3 className="font-semibold mb-2">{t('features.security')}</h3>
                       <p className="text-sm text-gray-400">
-                        Military-grade encryption and automatic data deletion after 24 hours
+                        {t('features.securityDesc')}
                       </p>
                     </div>
                   </div>
@@ -739,19 +796,19 @@ export default function HomePage() {
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600"></div>
                   <div>
                     <p className="text-gray-500 text-sm">
-                      © {new Date().getFullYear()} Vogue AI Studio
+                      © {new Date().getFullYear()} {t('footer.copyright')}
                     </p>
                     <p className="text-gray-600 text-sm mt-0.5">
-                      Redefining virtual fashion experiences
+                      {t('footer.tagline')}
                     </p>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-6">
-                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">Terms of Service</a>
-                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">Privacy Policy</a>
-                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">Support</a>
-                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">Careers</a>
+                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">{t('footer.terms')}</a>
+                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">{t('footer.privacy')}</a>
+                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">{t('footer.support')}</a>
+                  <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">{t('footer.careers')}</a>
                 </div>
               </div>
               
