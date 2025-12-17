@@ -1,4 +1,4 @@
-// app/page.tsx
+// app/page.tsx - TAMAMEN DÜZELTİLMİŞ
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -13,7 +13,7 @@ import { Spinner } from '@/components/Spinner';
 export default function HomePage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [credits, setCredits] = useState<number>(5); // Default credits
+  const [credits, setCredits] = useState<number>(5);
   const [activeTab, setActiveTab] = useState<'generate' | 'history' | 'compare'>('generate');
 
   useEffect(() => {
@@ -22,7 +22,6 @@ export default function HomePage() {
       
       if (session?.user) {
         setUser(session.user);
-        // Fetch user credits
         const { data } = await supabase
           .from('profiles')
           .select('credits')
@@ -42,7 +41,6 @@ export default function HomePage() {
 
     checkAuth();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === 'SIGNED_OUT') {
@@ -69,143 +67,145 @@ export default function HomePage() {
   }
 
   if (!user) {
-    return null; // Will redirect in useEffect
+    return null;
   }
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Navigation Header */}
-      // app/page.tsx - SADECE HEADER KISMI GÜNCELLENİYOR
-<header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-    <div className="flex items-center justify-between">
-      {/* Sol taraf */}
-      <div className="flex items-center space-x-4 sm:space-x-8">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Virtual Try-On Studio</h1>
-          <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">Powered by Fal AI</p>
-        </div>
-        
-        <nav className="hidden md:flex space-x-4">
-          {/* ... tab butonları aynı ... */}
-        </nav>
-      </div>
-
-      {/* Sağ taraf - LOGOUT BUTONU BURADA */}
-      <div className="flex items-center space-x-2 sm:space-x-4">
-        {/* Kredi bilgisi - MOBİL'DE GİZLİ */}
-        <div className="hidden sm:block">
-          <Card className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500">
-            <div className="flex items-center space-x-1.5">
-              <span className="text-sm">⭐</span>
-              <span className="font-bold text-sm">{credits}</span>
-              <span className="text-xs opacity-90">credits</span>
+      {/* FIXED HEADER - DÜZELTİLDİ */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-lg border-b border-white/10 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          {/* ÜST SATIR: Logo + Kullanıcı Bilgisi */}
+          <div className="flex items-center justify-between py-3">
+            {/* SOL: Logo */}
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                <span className="font-bold text-sm">V</span>
+              </div>
+              <div>
+                <h1 className="text-lg font-bold tracking-tight">Try-On Studio</h1>
+                <p className="text-xs text-gray-400 hidden sm:inline">AI Powered</p>
+              </div>
             </div>
-          </Card>
-        </div>
-        
-        {/* Email bilgisi - MOBİL'DE GİZLİ */}
-        <div className="hidden md:block text-right">
-          <p className="text-xs text-gray-400 truncate max-w-[150px]">Logged in as</p>
-          <p className="text-sm font-medium truncate max-w-[150px]">{user.email}</p>
-        </div>
-        
-        {/* LOGOUT BUTONU - HER ZAMAN GÖRÜNÜR */}
-        <LogoutButton />
-      </div>
-    </div>
 
-    {/* Mobile Navigation */}
-    <div className="md:hidden flex justify-between items-center mt-3">
-      <div className="flex space-x-2 overflow-x-auto pb-1">
-        <button
-          onClick={() => setActiveTab('generate')}
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap flex-1 min-w-[80px] text-center ${
-            activeTab === 'generate'
-              ? 'bg-white text-black'
-              : 'bg-white/10'
-          }`}
-        >
-          Generate
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap flex-1 min-w-[80px] text-center ${
-            activeTab === 'history'
-              ? 'bg-white text-black'
-              : 'bg-white/10'
-          }`}
-        >
-          History
-        </button>
-        <button
-          onClick={() => setActiveTab('compare')}
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap flex-1 min-w-[80px] text-center ${
-            activeTab === 'compare'
-              ? 'bg-white text-black'
-              : 'bg-white/10'
-          }`}
-        >
-          Compare
-        </button>
-      </div>
-      
-      {/* Mobile Kredi Göstergesi */}
-      <div className="ml-2 sm:hidden">
-        <div className="flex items-center px-2 py-1 bg-purple-500/20 rounded">
-          <span className="text-xs mr-1">⭐</span>
-          <span className="font-bold text-xs">{credits}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
+            {/* SAĞ: Kullanıcı + Logout */}
+            <div className="flex items-center space-x-3">
+              {/* Kredi - MOBİL'DE KÜÇÜK */}
+              <div className="hidden sm:block">
+                <div className="flex items-center px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-white/10">
+                  <span className="text-yellow-400 mr-1.5">⭐</span>
+                  <span className="font-bold">{credits}</span>
+                  <span className="text-xs text-gray-300 ml-1">credits</span>
+                </div>
+              </div>
+              
+              {/* MOBİL Kredi (küçük) */}
+              <div className="sm:hidden">
+                <div className="flex items-center px-2 py-1 bg-purple-500/20 rounded">
+                  <span className="text-xs mr-1">⭐</span>
+                  <span className="font-bold text-sm">{credits}</span>
+                </div>
+              </div>
+              
+              {/* Logout Butonu */}
+              <LogoutButton />
+            </div>
+          </div>
 
-      {/* Main Content */}
-      <main className="pt-32 pb-12 px-4 sm:px-6 lg:px-8">
+          {/* ALT SATIR: Navigation Tabs */}
+          <div className="border-t border-white/10 pt-3 pb-3">
+            <div className="flex justify-between items-center">
+              {/* Navigation Tabs */}
+              <nav className="flex space-x-1 w-full">
+                <button
+                  onClick={() => setActiveTab('generate')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'generate'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'hover:bg-white/10 text-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">🎨 Generate</span>
+                  <span className="sm:hidden">🎨</span>
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'history'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'hover:bg-white/10 text-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">📚 History</span>
+                  <span className="sm:hidden">📚</span>
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('compare')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'compare'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'hover:bg-white/10 text-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">⚖️ Compare</span>
+                  <span className="sm:hidden">⚖️</span>
+                </button>
+              </nav>
+              
+              {/* Email - SADECE DESKTOP */}
+              <div className="hidden lg:block ml-6 text-right min-w-[180px]">
+                <p className="text-xs text-gray-400 truncate">Logged in as</p>
+                <p className="text-sm font-medium truncate">{user.email}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT - Header yüksekliğine göre padding */}
+      <main className="pt-28 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          {/* Tab Content */}
-          {activeTab === 'generate' && (
-            <div className="space-y-8">
-              <div className="text-center">
+          {/* Tab Başlıkları */}
+          <div className="mb-8 text-center">
+            {activeTab === 'generate' && (
+              <>
                 <h2 className="text-3xl font-bold mb-3">Create New Try-On</h2>
                 <p className="text-gray-400 max-w-2xl mx-auto">
                   Upload a model photo and a garment image to generate a virtual try-on.
                   Each generation uses 1 credit.
                 </p>
-              </div>
-              
-              <TryOnClient />
-            </div>
-          )}
-
-          {activeTab === 'history' && (
-            <div className="space-y-8">
-              <div className="text-center">
+              </>
+            )}
+            
+            {activeTab === 'history' && (
+              <>
                 <h2 className="text-3xl font-bold mb-3">Generation History</h2>
                 <p className="text-gray-400">
                   View your previous virtual try-on generations
                 </p>
-              </div>
-              
-              <HistoryGrid userId={user.id} />
-            </div>
-          )}
-
-          {activeTab === 'compare' && (
-            <div className="space-y-8">
-              <div className="text-center">
+              </>
+            )}
+            
+            {activeTab === 'compare' && (
+              <>
                 <h2 className="text-3xl font-bold mb-3">Compare Results</h2>
                 <p className="text-gray-400">
                   Compare different try-on results side by side
                 </p>
-              </div>
-              
-              <CompareView userId={user.id} />
-            </div>
-          )}
+              </>
+            )}
+          </div>
 
-          {/* Credits Info & Upgrade */}
+          {/* Tab İçerikleri */}
+          <div className="min-h-[500px]">
+            {activeTab === 'generate' && <TryOnClient />}
+            {activeTab === 'history' && <HistoryGrid userId={user.id} />}
+            {activeTab === 'compare' && <CompareView userId={user.id} />}
+          </div>
+
+          {/* Upgrade Banner */}
           <div className="mt-12 border-t border-white/10 pt-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div>
