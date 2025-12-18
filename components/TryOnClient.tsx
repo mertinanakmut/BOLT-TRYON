@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Upload, Video, Image as ImageIcon, Download, Sparkles, Clock, Zap } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { Upload, Video, Image as ImageIcon, Download, Sparkles, Clock, Zap, AlertCircle } from 'lucide-react';
 import { UploadArea } from '@/components/UploadArea';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -25,6 +25,89 @@ type HistoryItem = {
   timestamp: number;
 };
 
+// 🆕 Yeni: Görsel proxy fonksiyonu - CORS sorununu çözer
+async function fetchImageWithCors(url: string): Promise<string> {
+  try {
+    // 1. Önce direkt deneyelim
+    const testResponse = await fetch(url, { mode: 'cors', credentials: 'omit' });
+    
+    if (testResponse.ok) {
+      return url; // Direkt çalışıyorsa URL'yi döndür
+    }
+    
+    // 2. Çalışmazsa proxy kullan
+    console.log('Direct fetch failed, using proxy...');
+    
+    // 🆕 Proxy endpoint'ine istek yap
+    const proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
+    const proxyResponse = await fetch(proxyUrl);
+    
+    if (!proxyResponse.ok) {
+      throw new Error(`Proxy fetch failed: ${proxyResponse.status}`);
+    }
+    
+    // Blob'u data URL'ye çevir
+    const blob = await proxyResponse.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    
+  } catch (error) {
+    console.error('Image fetch error:', error);
+    throw error;
+  }
+}
+
+// 🆕 Yeni: Proxy endpoint dosyası oluşturmak için (hızlı çözüm)
+// app/api/proxy/image/route.ts dosyasına bu kodu ekleyin:
+/*
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const imageUrl = searchParams.get('url');
+
+    if (!imageUrl) {
+      return NextResponse.json(
+        { error: 'Image URL is required' },
+        { status: 400 }
+      );
+    }
+
+    const response = await fetch(imageUrl);
+    
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: 'Failed to fetch image' },
+        { status: response.status }
+      );
+    }
+
+    const imageBuffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    return new NextResponse(imageBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('Proxy error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+*/
+
 export function TryOnClient() {
   const { t } = useLanguage();
   const { showToast } = useToast();
@@ -37,6 +120,10 @@ export function TryOnClient() {
   const [result, setResult] = useState<TryOnResponse | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  
+  // 🆕 Yeni: Görsel data URL state'i (CORS çözümü için)
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
   const [modelImageErrors, setModelImageErrors] = useState('');
   const [tshirtImageErrors, setTshirtImageErrors] = useState('');
@@ -46,11 +133,36 @@ export function TryOnClient() {
     return history.find((h) => h.id === selectedId) ?? null;
   }, [history, selectedId]);
 
+  // 🆕 Yeni: Görsel URL'si değiştiğinde data URL'ye çevir
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!display?.imageUrl) {
+        setImageDataUrl(null);
+        return;
+      }
+
+      setImageLoading(true);
+      try {
+        const dataUrl = await fetchImageWithCors(display.imageUrl);
+        setImageDataUrl(dataUrl);
+      } catch (error) {
+        console.error('Failed to load image:', error);
+        showToast('Failed to load image. Please try again.', 'error');
+        setImageDataUrl(null);
+      } finally {
+        setImageLoading(false);
+      }
+    };
+
+    loadImage();
+  }, [display?.imageUrl]);
+
   const handleGenerateTryOn = async () => {
     setModelImageErrors('');
     setTshirtImageErrors('');
     setResult(null);
     setSelectedId(null);
+    setImageDataUrl(null); // 🆕 Yeni: Eski görseli temizle
 
     if (!modelFile) {
       setModelImageErrors('Please upload a model image');
@@ -66,6 +178,7 @@ export function TryOnClient() {
 
     try {
       setLoading(true);
+      setImageLoading(true); // 🆕 Yeni: Görsel yükleme başladı
 
       const modelImageBase64 = await fileToBase64(modelFile);
       const tshirtImageBase64 = await fileToBase64(tshirtFile);
@@ -98,18 +211,29 @@ export function TryOnClient() {
 
   const display = selected ?? (result ? ({ id: 'current', ...result } as any) : null);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!display?.imageUrl) return;
     
-    const link = document.createElement('a');
-    link.href = display.imageUrl;
-    link.download = `vogue-ai-tryon-${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('Image downloaded successfully', 'success');
+    try {
+      const dataUrl = imageDataUrl || await fetchImageWithCors(display.imageUrl);
+      
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `vogue-ai-tryon-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast('Image downloaded successfully', 'success');
+    } catch (error) {
+      console.error('Download failed:', error);
+      showToast('Download failed. Please try again.', 'error');
+    }
   };
+
+  // 🆕 Yeni: Görsel yükleme durumu
+  const isImageAvailable = imageDataUrl && !imageLoading;
+  const isImageLoading = imageLoading && display?.imageUrl;
 
   return (
     <div className="space-y-8">
@@ -243,21 +367,41 @@ export function TryOnClient() {
               
               <button
                 onClick={handleDownload}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                disabled={!isImageAvailable || imageLoading}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
               >
-                <Download className="w-4 h-4" />
-                <span>Download</span>
+                {imageLoading ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>{imageLoading ? 'Loading...' : 'Download'}</span>
               </button>
             </div>
           </div>
           
           <div className="p-6">
-            {display.imageUrl ? (
+            {/* 🆕 Yeni: Görsel yükleme durumu */}
+            {isImageLoading && (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Spinner />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400">Loading image...</p>
+              </div>
+            )}
+
+            {isImageAvailable ? (
               <div className="relative">
                 <img
-                  src={display.imageUrl}
+                  src={imageDataUrl}
                   alt="Try-on result"
                   className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
+                  crossOrigin="anonymous" // 🆕 CORS için önemli
+                  onError={(e) => {
+                    console.error('Image failed to load');
+                    showToast('Image failed to load. Please try again.', 'error');
+                  }}
                 />
                 {display.videoUrl && (
                   <div className="absolute top-4 right-4">
@@ -268,12 +412,15 @@ export function TryOnClient() {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : !isImageLoading && (
               <div className="text-center py-12">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <ImageIcon className="w-8 h-8 text-gray-400" />
+                  <AlertCircle className="w-8 h-8 text-gray-400" />
                 </div>
-                <p className="text-gray-500 dark:text-gray-400">No image available</p>
+                <p className="text-gray-500 dark:text-gray-400">Image not available</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Try reloading or check console for errors
+                </p>
               </div>
             )}
           </div>
@@ -289,52 +436,44 @@ export function TryOnClient() {
           </div>
           
           <div className="p-6">
-            {history.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-gray-400" />
-                </div>
-                <p className="text-gray-500 dark:text-gray-400">{t('tryon.noHistory')}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                {history.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setSelectedId(item.id)}
-                    className={`relative rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedId === item.id 
-                        ? 'border-blue-500 dark:border-blue-400' 
-                        : 'border-transparent hover:border-gray-300 dark:hover:border-gray-700'
-                    }`}
-                  >
-                    {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt="History item"
-                        className="w-full h-32 object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-32 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-gray-400" />
-                      </div>
-                    )}
-                    {item.videoUrl && (
-                      <div className="absolute top-2 right-2">
-                        <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                          <Video className="w-3 h-3 text-white" />
-                        </div>
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                      <p className="text-xs text-white">
-                        {new Date(item.timestamp).toLocaleDateString()}
-                      </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {history.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                    selectedId === item.id 
+                      ? 'border-blue-500 dark:border-blue-400' 
+                      : 'border-transparent hover:border-gray-300 dark:hover:border-gray-700'
+                  }`}
+                >
+                  {item.imageUrl ? (
+                    <img
+                      src={`/api/proxy/image?url=${encodeURIComponent(item.imageUrl)}`}
+                      alt="History item"
+                      className="w-full h-32 object-cover"
+                      crossOrigin="anonymous"
+                    />
+                  ) : (
+                    <div className="w-full h-32 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-gray-400" />
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
+                  )}
+                  {item.videoUrl && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                        <Video className="w-3 h-3 text-white" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                    <p className="text-xs text-white">
+                      {new Date(item.timestamp).toLocaleDateString()}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
