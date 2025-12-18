@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - UUID FIXED VERSION
+// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -20,15 +20,18 @@ function generateValidUUID(): string {
   });
 }
 
+// 🎯 DEĞİŞTİ: Kling Kolors için görsel hazırlama
 async function prepareImageForFal(input: string): Promise<string> {
   console.log('🖼️ prepareImageForFal called, input length:', input?.length || 0);
   
   try {
+    // Kling Kolors, data URL formatını kabul ediyor (data:image/...;base64,...)
     if (input.startsWith('data:image/')) {
-      console.log('✓ Data URL formatı tespit edildi');
+      console.log('✓ Data URL formatı tespit edildi (Kling Kolors için uygun)');
       return input;
     }
     
+    // Eğer sadece base64 string ise, data URL formatına çevir
     const cleanStr = input.replace(/\s/g, '');
     if (/^[A-Za-z0-9+/]+=*$/.test(cleanStr) && cleanStr.length % 4 === 0) {
       const result = `data:image/png;base64,${cleanStr}`;
@@ -81,16 +84,16 @@ export async function POST(req: NextRequest) {
     if (DEV_TEST_MODE) {
       console.log(`[${requestId}] 🧪 DEV TEST MODE ACTIVE - Bypassing authentication`);
       
-      // GEÇERLİ UUID KULLAN - ÖNEMLİ DEĞİŞİKLİK!
+      // GEÇERLİ UUID KULLAN
       const testUserId = generateValidUUID();
       console.log(`[${requestId}] Generated valid UUID for test user: ${testUserId}`);
       
       user = {
-        id: testUserId,  // GEÇERLİ UUID
+        id: testUserId,
         email: 'dev@test.com'
       };
       
-      // Test user için profile kontrol et (artık UUID ile)
+      // Test user için profile kontrol et
       console.log(`[${requestId}] Checking test user profile with UUID: ${user.id}`);
       const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
         .eq('id', user.id)
         .single();
         
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (profileError && profileError.code !== 'PGRST116') {
         console.error(`[${requestId}] Profile query error:`, profileError);
       } else if (profileError?.code === 'PGRST116') {
         console.log(`[${requestId}] Profile not found (expected), will create...`);
@@ -116,9 +119,7 @@ export async function POST(req: NextRequest) {
         
         if (insertError) {
           console.error(`[${requestId}] ❌ Profile creation error:`, insertError);
-          // Profile oluşturulamazsa bile devam et, FAL AI'yi test et
           console.log(`[${requestId}] Continuing without profile for FAL AI test...`);
-          // Varsayılan profile oluştur
           user.credits = 100;
           user.subscription_tier = 'free';
         } else {
@@ -189,15 +190,14 @@ export async function POST(req: NextRequest) {
 
     const { modelImage, tshirtImage, generateVideo = false, options } = validationResult.data;
 
-    // 5. Kredi kontrolü - DEV MODE için basitleştirilmiş
-    console.log(`[${requestId}] Checking credits (simplified for DEV mode)...`);
+    // 5. Kredi kontrolü
+    console.log(`[${requestId}] Checking credits...`);
     const requiredCredits = CREDITS.TRYON_COST;
     
-    let userCredits = 100; // DEV MODE için varsayılan
+    let userCredits = 100;
     let userSubscriptionTier = 'free';
     
     if (!DEV_TEST_MODE || user.id !== 'dev-test-user-id-123456') {
-      // Normal mod veya UUID'li test kullanıcısı için profile kontrol et
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
@@ -231,13 +231,12 @@ export async function POST(req: NextRequest) {
 
     console.log(`[${requestId}] ✓ Credits available: ${userCredits}`);
 
-    // 6. Concurrent request kontrolü (skip edebiliriz debug için)
+    // 6. Concurrent request kontrolü
     console.log(`[${requestId}] Skipping concurrent check for debug...`);
 
-    // 7. History kaydı - DEV MODE için basitleştirilmiş
+    // 7. History kaydı
     console.log(`[${requestId}] Creating history record...`);
     try {
-      // Önce history oluşturmaya çalış, başarısız olursa devam et
       const { data: newHistoryRecord, error: historyInsertError } = await supabase
         .from('tryon_history')
         .insert({
@@ -250,14 +249,14 @@ export async function POST(req: NextRequest) {
           generate_video: false,
           options: options || {},
           request_id: requestId,
-          model_used: 'leffa/virtual-tryon'
+          // 🎯 DEĞİŞTİ: Model adı güncellendi
+          model_used: 'kling/v1.5/kolors-virtual-try-on'
         })
         .select()
         .single();
 
       if (historyInsertError) {
         console.warn(`[${requestId}] ⚠️ History insert error (continuing anyway):`, historyInsertError.message);
-        // History oluşturulamazsa bile devam et
         historyRecord = { id: 'temp-history-id' };
       } else {
         historyRecord = newHistoryRecord;
@@ -268,10 +267,10 @@ export async function POST(req: NextRequest) {
       historyRecord = { id: 'temp-history-id' };
     }
 
-    // 8. Kredi rezervasyonu (debug için skip - FAL AI testine odaklan)
+    // 8. Kredi rezervasyonu
     console.log(`[${requestId}] Skipping credit reservation for FAL AI test...`);
 
-    // 9. FAL AI API Call - ANA KISIM
+    // 9. FAL AI API Call - KLING KOLORS V1.5
     console.log(`[${requestId}] Preparing FAL AI call...`);
     
     const FAL_API_KEY = env.FAL_API_KEY;
@@ -297,10 +296,10 @@ export async function POST(req: NextRequest) {
       const tshirtImageFormatted = await prepareImageForFal(tshirtImage);
       
       console.log(`[${requestId}] ✓ Images prepared`);
-      console.log(`[${requestId}]   modelImage starts with: ${modelImageFormatted.substring(0, 50)}...`);
-      console.log(`[${requestId}]   tshirtImage starts with: ${tshirtImageFormatted.substring(0, 50)}...`);
+      console.log(`[${requestId}]   modelImage format: ${modelImageFormatted.substring(0, 30)}...`);
+      console.log(`[${requestId}]   tshirtImage format: ${tshirtImageFormatted.substring(0, 30)}...`);
 
-      // FAL AI payload
+      // FAL AI payload - Kling Kolors için
       interface FalPayload {
         image_url: string;
         garment_image_url: string;
@@ -313,14 +312,17 @@ export async function POST(req: NextRequest) {
         garment_image_url: tshirtImageFormatted,
       };
 
-      if (options?.seed) {
-        falPayload.seed = options.seed;
-        console.log(`[${requestId}] Using seed: ${options.seed}`);
+      // İsteğe bağlı parametreler
+      if (options) {
+        if (options.seed) falPayload.seed = options.seed;
+        if (options.guidanceScale) falPayload.guidance_scale = options.guidanceScale;
+        if (options.numInferenceSteps) falPayload.num_inference_steps = options.numInferenceSteps;
       }
 
-      console.log(`[${requestId}] 📤 Sending to FAL AI...`);
-      console.log(`[${requestId}] Endpoint: https://fal.run/fal-ai/leffa/virtual-tryon`);
-      console.log(`[${requestId}] Payload size: ${JSON.stringify(falPayload).length} bytes`);
+      console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
+      // 🎯 DEĞİŞTİ: Endpoint URL güncellendi
+      console.log(`[${requestId}] Endpoint: https://fal.run/fal-ai/kling/v1.5/kolors-virtual-try-on`);
+      console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -329,7 +331,8 @@ export async function POST(req: NextRequest) {
       }, 90000);
 
       try {
-        const falResponse = await fetch('https://fal.run/fal-ai/leffa/virtual-tryon', {
+        // 🎯 DEĞİŞTİ: Yeni endpoint kullanılıyor
+        const falResponse = await fetch('https://fal.run/fal-ai/kling/v1.5/kolors-virtual-try-on', {
           method: 'POST',
           headers: {
             'Authorization': `Key ${FAL_API_KEY}`,
@@ -362,7 +365,7 @@ export async function POST(req: NextRequest) {
             errorData = { detail: errorText };
           }
           
-          // History'i güncelle (eğer varsa)
+          // History'i güncelle
           if (historyRecord && historyRecord.id !== 'temp-history-id') {
             try {
               await supabase
@@ -372,7 +375,8 @@ export async function POST(req: NextRequest) {
                   error_message: errorData.detail || errorData.message || `FAL API error: ${falResponse.status}`,
                   processing_time_ms: responseTime,
                   fal_response: errorData,
-                  model_used: 'leffa/virtual-tryon'
+                  // 🎯 DEĞİŞTİ: Model adı güncellendi
+                  model_used: 'kling/v1.5/kolors-virtual-try-on'
                 })
                 .eq('id', historyRecord.id);
             } catch (updateError) {
@@ -388,6 +392,8 @@ export async function POST(req: NextRequest) {
             userErrorMessage = 'Insufficient FAL credits. Please add credits to your FAL account.';
           } else if (falResponse.status === 429) {
             userErrorMessage = 'Rate limit exceeded. Please try again later.';
+          } else if (falResponse.status === 422) {
+            userErrorMessage = 'Image validation failed. Please check image format/size.';
           }
           
           console.log(`[${requestId}] Returning error to client...`);
@@ -412,12 +418,14 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] Response type:`, typeof falData);
         console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
+        // 🎯 Kling Kolors response formatı: { "image": { "url": "...", "width": 768, "height": 1024, ... } }
         if (falData.image) {
           console.log(`[${requestId}] Image object found:`, {
             hasUrl: !!falData.image.url,
             width: falData.image.width,
             height: falData.image.height,
-            contentType: falData.image.content_type
+            contentType: falData.image.content_type,
+            fileSize: falData.image.file_size
           });
         }
         
@@ -432,7 +440,7 @@ export async function POST(req: NextRequest) {
           resultImageUrl = falData.output;
           console.log(`[${requestId}] Found URL in falData.output`);
         } else {
-          console.log(`[${requestId}] Full FAL response:`, JSON.stringify(falData).substring(0, 500));
+          console.log(`[${requestId}] Full FAL response (first 500 chars):`, JSON.stringify(falData).substring(0, 500));
         }
         
         if (!resultImageUrl) {
@@ -443,7 +451,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[${requestId}] ✓ Result URL: ${resultImageUrl.substring(0, 100)}...`);
 
-        // Update history (eğer varsa)
+        // Update history
         if (historyRecord && historyRecord.id !== 'temp-history-id') {
           try {
             console.log(`[${requestId}] Updating history as completed...`);
@@ -454,12 +462,18 @@ export async function POST(req: NextRequest) {
                 result_url: resultImageUrl,
                 video_url: null,
                 processing_time_ms: responseTime,
-                fal_request_id: falData.request_id || `leffa_${Date.now()}`,
-                model_used: 'leffa/virtual-tryon',
+                fal_request_id: falData.request_id || `kling_${Date.now()}`,
+                // 🎯 DEĞİŞTİ: Model adı güncellendi
+                model_used: 'kling/v1.5/kolors-virtual-try-on',
                 metrics: {
                   inference_time: responseTime,
                   seed: falPayload.seed || 'not_specified',
-                  model: 'leffa/virtual-tryon'
+                  model: 'kling/v1.5/kolors-virtual-try-on',
+                  image_details: {
+                    width: falData.image?.width,
+                    height: falData.image?.height,
+                    file_size: falData.image?.file_size
+                  }
                 }
               })
               .eq('id', historyRecord.id);
@@ -478,7 +492,7 @@ export async function POST(req: NextRequest) {
             videoUrl: null,
             generationTimeMs: responseTime,
             remainingCredits: userCredits - requiredCredits,
-            requestId: falData.request_id || `leffa_${Date.now()}`,
+            requestId: falData.request_id || `kling_${Date.now()}`,
             historyId: historyRecord?.id || 'temp-id',
             imageDetails: falData.image || { url: resultImageUrl }
           },
@@ -488,7 +502,8 @@ export async function POST(req: NextRequest) {
             videoGenerated: false,
             userTier: userSubscriptionTier,
             garmentType: options?.category || 'tshirt',
-            model: 'leffa/virtual-tryon',
+            // 🎯 DEĞİŞTİ: Model adı güncellendi
+            model: 'kling/v1.5/kolors-virtual-try-on',
             seed: falPayload.seed || 'not_specified'
           },
           debug: {
@@ -512,7 +527,8 @@ export async function POST(req: NextRequest) {
             'X-Response-Time': totalTime.toString(),
             'X-Credits-Used': requiredCredits.toString(),
             'X-Remaining-Credits': (userCredits - requiredCredits).toString(),
-            'X-FAL-Model': 'leffa/virtual-tryon'
+            // 🎯 DEĞİŞTİ: Model adı güncellendi
+            'X-FAL-Model': 'kling/v1.5/kolors-virtual-try-on'
           }
         });
 
@@ -531,7 +547,8 @@ export async function POST(req: NextRequest) {
                   status: 'failed',
                   error_message: 'Request timeout (90s)',
                   processing_time_ms: responseTime,
-                  model_used: 'leffa/virtual-tryon'
+                  // 🎯 DEĞİŞTİ: Model adı güncellendi
+                  model_used: 'kling/v1.5/kolors-virtual-try-on'
                 })
                 .eq('id', historyRecord.id);
             } catch (updateError) {
@@ -575,7 +592,8 @@ export async function POST(req: NextRequest) {
               status: 'failed',
               error_message: `Image processing error: ${imageProcessingError.message}`,
               processing_time_ms: Date.now() - startTime,
-              model_used: 'leffa/virtual-tryon'
+              // 🎯 DEĞİŞTİ: Model adı güncellendi
+              model_used: 'kling/v1.5/kolors-virtual-try-on'
             })
             .eq('id', historyRecord.id);
         } catch (updateError) {
