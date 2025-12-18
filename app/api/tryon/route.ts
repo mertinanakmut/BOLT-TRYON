@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION - FINAL FIX
+// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION - FINAL & CORRECTED
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -11,26 +11,25 @@ import { env } from '@/lib/env';
 // DEBUG: Başlangıç log'u
 console.log('🔧 API Route yüklendi:', new Date().toISOString());
 
-// 🎯 DÜZELTME: Kling Kolors için görsel hazırlama - SADECE BASE64 KISMI
+// 🎯 DÜZELTME: API'nin beklediği Data URL formatını döndür
 async function prepareImageForFal(input: string): Promise<string> {
   console.log('🖼️ prepareImageForFal called, input length:', input?.length || 0);
   
   try {
-    // Kling Kolors için sadece base64 kısmını al (data URL formatından temizle)
+    // Eğer zaten data URL formatındaysa, olduğu gibi döndür
     if (input.startsWith('data:image/')) {
-      console.log('✓ Data URL formatı tespit edildi, sadece base64 kısmı alınıyor');
-      const base64Part = input.split(',')[1];
-      if (base64Part) {
-        console.log('✓ Base64 kısmı çıkarıldı, length:', base64Part.length);
-        return base64Part; // SADECE BASE64, DATA URL DEĞİL!
-      }
+      console.log('✓ Data URL formatı tespit edildi, direkt kullanılıyor');
+      return input; // DEĞİŞİKLİK: Doğrudan döndür
     }
     
-    // Eğer sadece base64 string ise direkt döndür
+    // Eğer saf base64 string ise, data URL formatına çevir
     const cleanStr = input.replace(/\s/g, '');
     if (/^[A-Za-z0-9+/]+=*$/.test(cleanStr) && cleanStr.length % 4 === 0) {
-      console.log('✓ Saf base64 formatı, direkt kullanılıyor, length:', cleanStr.length);
-      return cleanStr;
+      // NOT: API belgelerinde herhangi bir image tipi (jpeg/png) kabul ediliyor.
+      // Pratikte 'image/jpeg' veya 'image/png' kullanabilirsiniz.
+      const result = `data:image/jpeg;base64,${cleanStr}`;
+      console.log('✓ Saf base64, Data URL formatına çevrildi, length:', result.length);
+      return result;
     }
     
     throw new Error('Invalid base64 format');
@@ -98,32 +97,6 @@ async function getFalResult(responseUrl: string, apiKey: string): Promise<any> {
   } catch (error) {
     console.error('Result fetch error:', error);
     throw error;
-  }
-}
-
-// 🎯 DÜZELTME: Base64 validation fonksiyonu
-function isValidBase64(str: string): boolean {
-  try {
-    const cleanStr = str.replace(/\s/g, '');
-    
-    // Base64 karakter kontrolü
-    if (!/^[A-Za-z0-9+/]+=*$/.test(cleanStr)) {
-      console.log('❌ Base64 contains invalid characters');
-      return false;
-    }
-    
-    // Uzunluk kontrolü
-    if (cleanStr.length % 4 !== 0) {
-      console.log(`❌ Base64 length not multiple of 4: ${cleanStr.length}`);
-      return false;
-    }
-    
-    // Decode test
-    atob(cleanStr);
-    return true;
-  } catch (error) {
-    console.error('❌ Base64 decode failed:', error);
-    return false;
   }
 }
 
@@ -336,7 +309,7 @@ export async function POST(req: NextRequest) {
     // 8. Kredi rezervasyonu (skip for now)
     console.log(`[${requestId}] Skipping credit reservation for FAL AI test...`);
 
-    // 9. FAL AI API Call - KLING KOLORS V1.5 - MINIMAL PAYLOAD
+    // 9. FAL AI API Call - KLING KOLORS V1.5 - RESMİ API'YE GÖRE DÜZELTİLDİ
     console.log(`[${requestId}] Preparing FAL AI call...`);
     
     const FAL_API_KEY = env.FAL_API_KEY;
@@ -356,66 +329,39 @@ export async function POST(req: NextRequest) {
     console.log(`[${requestId}] ✓ FAL API Key found (starts with: ${FAL_API_KEY.substring(0, 10)}...)`);
 
     try {
-      // Görselleri hazırla
-      console.log(`[${requestId}] Preparing images...`);
-      const modelImageBase64 = await prepareImageForFal(modelImage);
-      const tshirtImageBase64 = await prepareImageForFal(tshirtImage);
+      // Görselleri Data URL formatına çevir
+      console.log(`[${requestId}] Preparing images (Data URL format)...`);
+      const humanImageDataUrl = await prepareImageForFal(modelImage);   // DEĞİŞİKLİK: Data URL
+      const garmentImageDataUrl = await prepareImageForFal(tshirtImage); // DEĞİŞİKLİK: Data URL
       
-      console.log(`[${requestId}] ✓ Images prepared (base64 only)`);
-      console.log(`[${requestId}]   modelImage base64 length: ${modelImageBase64.length}`);
-      console.log(`[${requestId}]   tshirtImage base64 length: ${tshirtImageBase64.length}`);
-      
-      // 🎯 BASE64 VALIDATION - FAL AI çok hassas!
-      console.log(`[${requestId}] Validating base64 format...`);
-      
-      if (!isValidBase64(modelImageBase64)) {
-        console.error(`[${requestId}] ❌ Model image has invalid base64 format`);
-        return NextResponse.json({
-          success: false,
-          error: 'Model image has invalid format. Please upload a valid JPEG or PNG image.',
-          code: 'INVALID_IMAGE_FORMAT'
-        }, { status: STATUS.BAD_REQUEST });
-      }
-      
-      if (!isValidBase64(tshirtImageBase64)) {
-        console.error(`[${requestId}] ❌ Tshirt image has invalid base64 format`);
-        return NextResponse.json({
-          success: false,
-          error: 'Tshirt image has invalid format. Please upload a valid JPEG or PNG image.',
-          code: 'INVALID_IMAGE_FORMAT'
-        }, { status: STATUS.BAD_REQUEST });
-      }
-      
-      console.log(`[${requestId}] ✓ Base64 validation passed`);
+      console.log(`[${requestId}] ✓ Images prepared as Data URL`);
+      console.log(`[${requestId}]   humanImage (first 60 chars): ${humanImageDataUrl.substring(0, 60)}...`);
+      console.log(`[${requestId}]   garmentImage (first 60 chars): ${garmentImageDataUrl.substring(0, 60)}...`);
+      console.log(`[${requestId}]   humanImage length: ${humanImageDataUrl.length}`);
+      console.log(`[${requestId}]   garmentImage length: ${garmentImageDataUrl.length}`);
 
-      // 🎯 DÜZELTME: MINIMAL PAYLOAD - sadece zorunlu alanlar
-      // FAL AI Kling Kolors v1.5 sadece 2 parametre istiyor olabilir
+      // 🎯 DÜZELTME: RESMİ API'YE GÖRE PAYLOAD
+      // API belgeleri: "human_image_url" ve "garment_image_url" (Data URL veya HTTP URL)
+      // "seed", "size", "guidance_scale" gibi parametreler DESTEKLENMİYOR.
       interface FalPayload {
-        model_image: string;
-        garment_image: string;
-        seed?: number;
-        // 🎯 NOT: size parametresini çıkardık - 422 hatasına sebep oluyor
+        human_image_url: string;    // DEĞİŞİKLİK: model_image -> human_image_url
+        garment_image_url: string;  // DEĞİŞİKLİK: garment_image -> garment_image_url
+        // NOT: "seed", "size", "guidance_scale", "num_inference_steps" YOK.
       }
       
       const falPayload: FalPayload = {
-        model_image: modelImageBase64,
-        garment_image: tshirtImageBase64
+        human_image_url: humanImageDataUrl,    // DEĞİŞİKLİK
+        garment_image_url: garmentImageDataUrl // DEĞİŞİKLİK
       };
-
-      // 🎯 SADECE seed ekleyelim - diğerleri optional
-      if (options?.seed !== undefined && options.seed !== null) {
-        falPayload.seed = Number(options.seed);
-      }
 
       console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
       console.log(`[${requestId}] Endpoint: https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on`);
       console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
       console.log(`[${requestId}] Payload debug:`, {
-        has_model_image: !!falPayload.model_image,
-        has_garment_image: !!falPayload.garment_image,
-        has_seed: !!falPayload.seed,
-        model_image_length: falPayload.model_image?.length || 0,
-        garment_image_length: falPayload.garment_image?.length || 0
+        human_image_url_starts_with: falPayload.human_image_url.substring(0, 30),
+        garment_image_url_starts_with: falPayload.garment_image_url.substring(0, 30),
+        human_image_url_length: falPayload.human_image_url.length,
+        garment_image_url_length: falPayload.garment_image_url.length
       });
 
       const controller = new AbortController();
@@ -445,7 +391,7 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}]   Time: ${responseTime}ms`);
         console.log(`[${requestId}]   OK: ${falResponse.ok}`);
 
-        // 🎯 422 HATASI DETAYLI LOG
+        // 422 HATASI DETAYLI LOG
         if (!falResponse.ok) {
           let errorData: any;
           try {
@@ -512,7 +458,10 @@ export async function POST(req: NextRequest) {
               requestId,
               devMode: DEV_TEST_MODE,
               errorDetails: errorData,
-              payloadKeys: Object.keys(falPayload)
+              payloadKeys: Object.keys(falPayload),
+              // Debug için payload'ın başlangıcını da ekleyelim
+              human_image_url_preview: falPayload.human_image_url.substring(0, 50),
+              garment_image_url_preview: falPayload.garment_image_url.substring(0, 50)
             }
           }, { 
             status: falResponse.status > 400 ? falResponse.status : STATUS.SERVER_ERROR 
@@ -524,7 +473,7 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] Response type:`, typeof falData);
         console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
-        // 🎯 QUEUE RESPONSE İŞLEME
+        // QUEUE RESPONSE İŞLEME
         let pollingAttempts = 0;
         let finalResult = null;
         
@@ -564,7 +513,7 @@ export async function POST(req: NextRequest) {
             }
           }
           
-          // ⏱️ Sıra beklerken polling yap
+          // Sıra beklerken polling yap
           console.log(`[${requestId}] ⏱️ Starting queue polling...`);
           
           const maxPollingAttempts = 60;
@@ -651,12 +600,13 @@ export async function POST(req: NextRequest) {
           finalResult = falData;
         }
         
-        // 🎯 FİNAL RESULT İŞLEME
+        // FİNAL RESULT İŞLEME
         let resultImageUrl: string | null = null;
         let imageDetails: any = null;
         
         console.log(`[${requestId}] Final response sample:`, JSON.stringify(finalResult).substring(0, 500));
         
+        // API belgelerine göre yanıt formatı: { "image": { "url": "...", ... } }
         if (finalResult.image && finalResult.image.url) {
           resultImageUrl = finalResult.image.url;
           imageDetails = finalResult.image;
@@ -758,7 +708,8 @@ export async function POST(req: NextRequest) {
                 model_used: 'kling/v1.5/kolors-virtual-try-on',
                 metrics: {
                   inference_time: Date.now() - startTime,
-                  seed: falPayload.seed || 'not_specified',
+                  // NOT: API seed parametresini desteklemediği için 'not_specified'
+                  seed: 'not_specified',
                   model: 'kling/v1.5/kolors-virtual-try-on',
                   image_details: imageDetails || { url: resultImageUrl },
                   was_queued: !!falData.status_url,
@@ -798,7 +749,7 @@ export async function POST(req: NextRequest) {
             userTier: userSubscriptionTier,
             garmentType: options?.category || 'tshirt',
             model: 'kling/v1.5/kolors-virtual-try-on',
-            seed: falPayload.seed || 'not_specified',
+            seed: 'not_specified', // API seed desteklemiyor
             processingType: falData.status_url ? 'queued' : 'immediate'
           },
           debug: {
