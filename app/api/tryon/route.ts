@@ -56,9 +56,9 @@ export async function POST(req: NextRequest) {
   console.log(`[${requestId}] URL: ${req.url}`);
   
   try {
-    // 1. DEV_TEST_MODE kontrolü
-    const DEV_TEST_MODE = process.env.DEV_TEST_MODE === 'true';
-    console.log(`[${requestId}] DEV_TEST_MODE: ${DEV_TEST_MODE}, value: "${process.env.DEV_TEST_MODE}"`);
+    // 1. DEV_TEST_MODE kontrolü - env'den al
+    const DEV_TEST_MODE = env.DEV_TEST_MODE; // ✅ DÜZELTİLDİ: process.env yerine env
+    console.log(`[${requestId}] DEV_TEST_MODE: ${DEV_TEST_MODE}`);
     console.log(`[${requestId}] FAL_API_KEY exists: ${!!env.FAL_API_KEY}`);
     
     let user: any;
@@ -84,51 +84,37 @@ export async function POST(req: NextRequest) {
     if (DEV_TEST_MODE) {
       console.log(`[${requestId}] 🧪 DEV TEST MODE ACTIVE - Bypassing authentication`);
       
-      // GEÇERLİ UUID KULLAN
-      const testUserId = generateValidUUID();
-      console.log(`[${requestId}] Generated valid UUID for test user: ${testUserId}`);
+      // ✅ DÜZELTİLDİ: SQL'deki UUID ile aynı olmalı
+      const testUserId = '00000000-0000-0000-0000-000000000123'; // SQL'deki UUID
+      console.log(`[${requestId}] Using fixed test user UUID: ${testUserId}`);
       
       user = {
         id: testUserId,
-        email: 'dev@test.com'
+        email: 'dev@test.com',
+        credits: 100, // Direk burada tanımla
+        subscription_tier: 'free'
       };
       
-      // Test user için profile kontrol et
+      // Test user için profile kontrol et (ama artık zaten yoksa oluşturmaya çalışma)
       console.log(`[${requestId}] Checking test user profile with UUID: ${user.id}`);
       const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
         .eq('id', user.id)
-        .single();
-        
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error(`[${requestId}] Profile query error:`, profileError);
-      } else if (profileError?.code === 'PGRST116') {
-        console.log(`[${requestId}] Profile not found (expected), will create...`);
+        .maybeSingle(); // ✅ DÜZELTİLDİ: single yerine maybeSingle
+      
+      if (profileError) {
+        console.warn(`[${requestId}] Profile query warning:`, profileError.message);
+        // Hata olsa bile devam et, çünkü zaten SQL'de oluşturduk
       }
       
-      if (!existingProfile) {
-        console.log(`[${requestId}] Creating test user profile with UUID...`);
-        const { error: insertError } = await supabase.from('profiles').insert({
-          id: user.id,
-          email: user.email,
-          credits: 100,
-          subscription_tier: 'free',
-          created_at: new Date().toISOString()
-        });
-        
-        if (insertError) {
-          console.error(`[${requestId}] ❌ Profile creation error:`, insertError);
-          console.log(`[${requestId}] Continuing without profile for FAL AI test...`);
-          user.credits = 100;
-          user.subscription_tier = 'free';
-        } else {
-          console.log(`[${requestId}] ✓ Test profile created with UUID`);
-        }
-      } else {
+      if (existingProfile) {
         console.log(`[${requestId}] ✓ Test profile exists, credits: ${existingProfile.credits}`);
         user.credits = existingProfile.credits;
         user.subscription_tier = existingProfile.subscription_tier;
+      } else {
+        console.log(`[${requestId}] Test profile not found, using default credits (100)`);
+        // SQL zaten oluşturdu, o yüzden tekrar oluşturmaya çalışma
       }
       
     } else {
@@ -190,22 +176,23 @@ export async function POST(req: NextRequest) {
 
     const { modelImage, tshirtImage, generateVideo = false, options } = validationResult.data;
 
-    // 5. Kredi kontrolü
+    // 5. Kredi kontrolü - Basitleştir
     console.log(`[${requestId}] Checking credits...`);
     const requiredCredits = CREDITS.TRYON_COST;
     
-    let userCredits = 100;
-    let userSubscriptionTier = 'free';
+    let userCredits = user.credits || 100;
+    let userSubscriptionTier = user.subscription_tier || 'free';
     
-    if (!DEV_TEST_MODE || user.id !== 'dev-test-user-id-123456') {
+    // DEV_TEST_MODE'da zaten kredileri user objesinde var
+    if (!DEV_TEST_MODE) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error(`[${requestId}] ❌ Profile fetch error:`, profileError?.message);
+      if (profileError) {
+        console.warn(`[${requestId}] Profile fetch warning:`, profileError?.message);
       } else if (profile) {
         userCredits = profile.credits;
         userSubscriptionTier = profile.subscription_tier || 'free';
@@ -213,8 +200,6 @@ export async function POST(req: NextRequest) {
       } else {
         console.log(`[${requestId}] No profile found, using defaults`);
       }
-    } else {
-      console.log(`[${requestId}] Using default credits for DEV mode`);
     }
     
     if (userCredits < requiredCredits) {
@@ -231,10 +216,10 @@ export async function POST(req: NextRequest) {
 
     console.log(`[${requestId}] ✓ Credits available: ${userCredits}`);
 
-    // 6. Concurrent request kontrolü
+    // 6. Concurrent request kontrolü (skip)
     console.log(`[${requestId}] Skipping concurrent check for debug...`);
 
-    // 7. History kaydı
+    // 7. History kaydı - HATA YÖNETİMİ İYİLEŞTİRİLDİ
     console.log(`[${requestId}] Creating history record...`);
     try {
       const { data: newHistoryRecord, error: historyInsertError } = await supabase
@@ -249,7 +234,6 @@ export async function POST(req: NextRequest) {
           generate_video: false,
           options: options || {},
           request_id: requestId,
-          // 🎯 DEĞİŞTİ: Model adı güncellendi
           model_used: 'kling/v1.5/kolors-virtual-try-on'
         })
         .select()
@@ -257,17 +241,24 @@ export async function POST(req: NextRequest) {
 
       if (historyInsertError) {
         console.warn(`[${requestId}] ⚠️ History insert error (continuing anyway):`, historyInsertError.message);
-        historyRecord = { id: 'temp-history-id' };
+        // Temp history oluştur
+        historyRecord = { 
+          id: `temp-${requestId}`,
+          user_id: user.id
+        };
       } else {
         historyRecord = newHistoryRecord;
         console.log(`[${requestId}] ✓ History record created: ${historyRecord.id}`);
       }
-    } catch (historyError) {
-      console.warn(`[${requestId}] ⚠️ History creation failed, continuing:`, historyError);
-      historyRecord = { id: 'temp-history-id' };
+    } catch (historyError: any) {
+      console.warn(`[${requestId}] ⚠️ History creation failed, continuing:`, historyError.message);
+      historyRecord = { 
+        id: `temp-${requestId}`,
+        user_id: user.id
+      };
     }
 
-    // 8. Kredi rezervasyonu
+    // 8. Kredi rezervasyonu (skip for now)
     console.log(`[${requestId}] Skipping credit reservation for FAL AI test...`);
 
     // 9. FAL AI API Call - KLING KOLORS V1.5
@@ -322,8 +313,7 @@ export async function POST(req: NextRequest) {
       }
 
       console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
-      // 🎯 DEĞİŞTİ: Endpoint URL güncellendi
-      console.log(`[${requestId}] Endpoint: https://fal.run/fal-ai/kling/kolors-virtual-try-on`);
+      console.log(`[${requestId}] Endpoint: https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on`);
       console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
 
       const controller = new AbortController();
@@ -333,8 +323,8 @@ export async function POST(req: NextRequest) {
       }, 90000);
 
       try {
-        // 🎯 DEĞİŞTİ: Yeni endpoint kullanılıyor
-        const falResponse = await fetch('https://fal.run/fal-ai/kling/kolors-virtual-try-on', {
+        // ✅ DOĞRU ENDPOINT
+        const falResponse = await fetch('https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on', {
           method: 'POST',
           headers: {
             'Authorization': `Key ${FAL_API_KEY}`,
@@ -367,8 +357,8 @@ export async function POST(req: NextRequest) {
             errorData = { detail: errorText };
           }
           
-          // History'i güncelle
-          if (historyRecord && historyRecord.id !== 'temp-history-id') {
+          // History'i güncelle (sadece gerçek bir history kaydı varsa)
+          if (historyRecord && !historyRecord.id.startsWith('temp-')) {
             try {
               await supabase
                 .from('tryon_history')
@@ -377,7 +367,6 @@ export async function POST(req: NextRequest) {
                   error_message: errorData.detail || errorData.message || `FAL API error: ${falResponse.status}`,
                   processing_time_ms: responseTime,
                   fal_response: errorData,
-                  // 🎯 DEĞİŞTİ: Model adı güncellendi
                   model_used: 'kling/v1.5/kolors-virtual-try-on'
                 })
                 .eq('id', historyRecord.id);
@@ -420,7 +409,7 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] Response type:`, typeof falData);
         console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
-        // 🎯 Kling Kolors response formatı: { "image": { "url": "...", "width": 768, "height": 1024, ... } }
+        // 🎯 Kling Kolors response formatı
         if (falData.image) {
           console.log(`[${requestId}] Image object found:`, {
             hasUrl: !!falData.image.url,
@@ -443,18 +432,40 @@ export async function POST(req: NextRequest) {
           console.log(`[${requestId}] Found URL in falData.output`);
         } else {
           console.log(`[${requestId}] Full FAL response (first 500 chars):`, JSON.stringify(falData).substring(0, 500));
+          
+          // Alternatif URL arama
+          const responseStr = JSON.stringify(falData);
+          const urlMatch = responseStr.match(/https?:\/\/[^\s"']+/);
+          if (urlMatch) {
+            resultImageUrl = urlMatch[0];
+            console.log(`[${requestId}] Found URL via regex: ${resultImageUrl.substring(0, 100)}...`);
+          }
         }
         
         if (!resultImageUrl) {
           console.error(`[${requestId}] ❌ No image URL in response`);
           console.log(`[${requestId}] Full response:`, falData);
-          throw new Error('No image URL found in FAL AI response');
+          
+          // Hata durumunda da partial response döndür
+          return NextResponse.json({
+            success: false,
+            error: 'No image URL found in response',
+            code: 'NO_IMAGE_URL',
+            falResponse: falData,
+            responseTime: responseTime,
+            debug: {
+              requestId,
+              responseKeys: Object.keys(falData)
+            }
+          }, { 
+            status: STATUS.SERVER_ERROR 
+          });
         }
 
         console.log(`[${requestId}] ✓ Result URL: ${resultImageUrl.substring(0, 100)}...`);
 
-        // Update history
-        if (historyRecord && historyRecord.id !== 'temp-history-id') {
+        // Update history (sadece gerçek bir history kaydı varsa)
+        if (historyRecord && !historyRecord.id.startsWith('temp-')) {
           try {
             console.log(`[${requestId}] Updating history as completed...`);
             await supabase
@@ -465,17 +476,12 @@ export async function POST(req: NextRequest) {
                 video_url: null,
                 processing_time_ms: responseTime,
                 fal_request_id: falData.request_id || `kling_${Date.now()}`,
-                // 🎯 DEĞİŞTİ: Model adı güncellendi
                 model_used: 'kling/v1.5/kolors-virtual-try-on',
                 metrics: {
                   inference_time: responseTime,
                   seed: falPayload.seed || 'not_specified',
                   model: 'kling/v1.5/kolors-virtual-try-on',
-                  image_details: {
-                    width: falData.image?.width,
-                    height: falData.image?.height,
-                    file_size: falData.image?.file_size
-                  }
+                  image_details: falData.image || { url: resultImageUrl }
                 }
               })
               .eq('id', historyRecord.id);
@@ -504,7 +510,6 @@ export async function POST(req: NextRequest) {
             videoGenerated: false,
             userTier: userSubscriptionTier,
             garmentType: options?.category || 'tshirt',
-            // 🎯 DEĞİŞTİ: Model adı güncellendi
             model: 'kling/v1.5/kolors-virtual-try-on',
             seed: falPayload.seed || 'not_specified'
           },
@@ -529,7 +534,6 @@ export async function POST(req: NextRequest) {
             'X-Response-Time': totalTime.toString(),
             'X-Credits-Used': requiredCredits.toString(),
             'X-Remaining-Credits': (userCredits - requiredCredits).toString(),
-            // 🎯 DEĞİŞTİ: Model adı güncellendi
             'X-FAL-Model': 'kling/v1.5/kolors-virtual-try-on'
           }
         });
@@ -541,7 +545,7 @@ export async function POST(req: NextRequest) {
         if (fetchError.name === 'AbortError') {
           console.error(`[${requestId}] ⏰ FAL AI timeout after ${responseTime}ms`);
           
-          if (historyRecord && historyRecord.id !== 'temp-history-id') {
+          if (historyRecord && !historyRecord.id.startsWith('temp-')) {
             try {
               await supabase
                 .from('tryon_history')
@@ -549,7 +553,6 @@ export async function POST(req: NextRequest) {
                   status: 'failed',
                   error_message: 'Request timeout (90s)',
                   processing_time_ms: responseTime,
-                  // 🎯 DEĞİŞTİ: Model adı güncellendi
                   model_used: 'kling/v1.5/kolors-virtual-try-on'
                 })
                 .eq('id', historyRecord.id);
@@ -586,7 +589,7 @@ export async function POST(req: NextRequest) {
     } catch (imageProcessingError: any) {
       console.error(`[${requestId}] ❌ Image processing error:`, imageProcessingError);
       
-      if (historyRecord && historyRecord.id !== 'temp-history-id') {
+      if (historyRecord && !historyRecord.id.startsWith('temp-')) {
         try {
           await supabase
             .from('tryon_history')
@@ -594,7 +597,6 @@ export async function POST(req: NextRequest) {
               status: 'failed',
               error_message: `Image processing error: ${imageProcessingError.message}`,
               processing_time_ms: Date.now() - startTime,
-              // 🎯 DEĞİŞTİ: Model adı güncellendi
               model_used: 'kling/v1.5/kolors-virtual-try-on'
             })
             .eq('id', historyRecord.id);
