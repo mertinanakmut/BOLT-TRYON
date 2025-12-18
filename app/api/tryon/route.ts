@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION
+// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION - FIXED DOT NOTATION ERRORS
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -11,32 +11,27 @@ import { env } from '@/lib/env';
 // DEBUG: Başlangıç log'u
 console.log('🔧 API Route yüklendi:', new Date().toISOString());
 
-// GEÇERLİ UUID oluşturma fonksiyonu
-function generateValidUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-// 🎯 DEĞİŞTİ: Kling Kolors için görsel hazırlama
+// 🎯 DÜZELTME: Kling Kolors için görsel hazırlama - SADECE BASE64 KISMI
 async function prepareImageForFal(input: string): Promise<string> {
   console.log('🖼️ prepareImageForFal called, input length:', input?.length || 0);
   
   try {
-    // Kling Kolors, data URL formatını kabul ediyor (data:image/...;base64,...)
+    // Kling Kolors için sadece base64 kısmını al (data URL formatından temizle)
     if (input.startsWith('data:image/')) {
-      console.log('✓ Data URL formatı tespit edildi (Kling Kolors için uygun)');
-      return input;
+      console.log('✓ Data URL formatı tespit edildi, sadece base64 kısmı alınıyor');
+      // data:image/jpeg;base64,/9j/4AA... formatından sadece /9j/4AA... kısmını al
+      const base64Part = input.split(',')[1];
+      if (base64Part) {
+        console.log('✓ Base64 kısmı çıkarıldı, length:', base64Part.length);
+        return base64Part; // SADECE BASE64, DATA URL DEĞİL!
+      }
     }
     
-    // Eğer sadece base64 string ise, data URL formatına çevir
+    // Eğer sadece base64 string ise direkt döndür
     const cleanStr = input.replace(/\s/g, '');
     if (/^[A-Za-z0-9+/]+=*$/.test(cleanStr) && cleanStr.length % 4 === 0) {
-      const result = `data:image/png;base64,${cleanStr}`;
-      console.log('✓ Base64 data URL formatına çevrildi, length:', result.length);
-      return result;
+      console.log('✓ Saf base64 formatı, direkt kullanılıyor, length:', cleanStr.length);
+      return cleanStr;
     }
     
     throw new Error('Invalid base64 format');
@@ -46,7 +41,7 @@ async function prepareImageForFal(input: string): Promise<string> {
   }
 }
 
-// FAL AI queue durumunu kontrol et
+// 🎯 DÜZELTME: FAL AI queue durumunu kontrol et - hata detaylarıyla
 async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<any> {
   try {
     const response = await fetch(statusUrl, {
@@ -58,7 +53,15 @@ async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<a
     });
     
     if (!response.ok) {
-      throw new Error(`Status check failed: ${response.status}`);
+      // Hata detaylarını oku
+      const errorText = await response.text();
+      console.error('❌ Queue status check error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        url: statusUrl
+      });
+      throw new Error(`Status check failed: ${response.status} - ${errorText}`);
     }
     
     return await response.json();
@@ -68,9 +71,10 @@ async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<a
   }
 }
 
-// FAL AI response URL'den sonucu al
+// 🎯 DÜZELTME: FAL AI response URL'den sonucu al - hata detaylarıyla
 async function getFalResult(responseUrl: string, apiKey: string): Promise<any> {
   try {
+    console.log('📥 Fetching FAL result from:', responseUrl);
     const response = await fetch(responseUrl, {
       method: 'GET',
       headers: {
@@ -80,10 +84,20 @@ async function getFalResult(responseUrl: string, apiKey: string): Promise<any> {
     });
     
     if (!response.ok) {
-      throw new Error(`Result fetch failed: ${response.status}`);
+      // Hata detaylarını oku
+      const errorText = await response.text();
+      console.error('❌ Result fetch error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        url: responseUrl
+      });
+      throw new Error(`Result fetch failed: ${response.status} - ${errorText.substring(0, 200)}`);
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('✅ FAL result received, keys:', Object.keys(result));
+    return result;
   } catch (error) {
     console.error('Result fetch error:', error);
     throw error;
@@ -214,7 +228,7 @@ export async function POST(req: NextRequest) {
     }
     console.log(`[${requestId}] ✓ Validation passed`);
 
-    const { modelImage, tshirtImage, generateVideo = false, options } = validationResult.data;
+    const { modelImage, tshirtImage, options } = validationResult.data;
 
     // 5. Kredi kontrolü
     console.log(`[${requestId}] Checking credits...`);
@@ -299,7 +313,7 @@ export async function POST(req: NextRequest) {
     // 8. Kredi rezervasyonu (skip for now)
     console.log(`[${requestId}] Skipping credit reservation for FAL AI test...`);
 
-    // 9. FAL AI API Call - KLING KOLORS V1.5
+    // 9. FAL AI API Call - KLING KOLORS V1.5 - DÜZELTİLDİ!
     console.log(`[${requestId}] Preparing FAL AI call...`);
     
     const FAL_API_KEY = env.FAL_API_KEY;
@@ -319,39 +333,56 @@ export async function POST(req: NextRequest) {
     console.log(`[${requestId}] ✓ FAL API Key found (starts with: ${FAL_API_KEY.substring(0, 10)}...)`);
 
     try {
-      // Görselleri hazırla
+      // Görselleri hazırla - SADECE BASE64 KISMI!
       console.log(`[${requestId}] Preparing images...`);
-      const modelImageFormatted = await prepareImageForFal(modelImage);
-      const tshirtImageFormatted = await prepareImageForFal(tshirtImage);
+      const modelImageBase64 = await prepareImageForFal(modelImage);
+      const tshirtImageBase64 = await prepareImageForFal(tshirtImage);
       
-      console.log(`[${requestId}] ✓ Images prepared`);
-      console.log(`[${requestId}]   modelImage format: ${modelImageFormatted.substring(0, 30)}...`);
-      console.log(`[${requestId}]   tshirtImage format: ${tshirtImageFormatted.substring(0, 30)}...`);
+      console.log(`[${requestId}] ✓ Images prepared (base64 only)`);
+      console.log(`[${requestId}]   modelImage base64 length: ${modelImageBase64.length}`);
+      console.log(`[${requestId}]   tshirtImage base64 length: ${tshirtImageBase64.length}`);
+      console.log(`[${requestId}]   modelImage starts with: ${modelImageBase64.substring(0, 30)}...`);
+      console.log(`[${requestId}]   tshirtImage starts with: ${tshirtImageBase64.substring(0, 30)}...`);
 
-      // FAL AI payload - Kling Kolors için
-      interface FalPayload {
-        image_url: string;
-        garment_image_url: string;
-        seed?: number;
-        guidance_scale?: number;
-        num_inference_steps?: number;
-        [key: string]: any;
-      }
-      
-      const falPayload: FalPayload = {
-        image_url: modelImageFormatted,
-        garment_image_url: tshirtImageFormatted,
+      // 🎯 DÜZELTME: FAL AI payload - SADECE GEREKLİ PARAMETRELER
+      const falPayload: Record<string, any> = {
+        model_image: modelImageBase64,
+        garment_image: tshirtImageBase64,
+        size: 'portrait' // Default size
       };
 
-      // İsteğe bağlı parametreler
+      // Options'dan parametreler
       if (options) {
-        if (options.seed) falPayload.seed = options.seed;
-        if (options.guidanceScale) falPayload.guidance_scale = options.guidanceScale;
-        if (options.numInferenceSteps) falPayload.num_inference_steps = options.numInferenceSteps;
+        // Seed
+        if (options.seed !== undefined && options.seed !== null) {
+          falPayload['seed'] = Number(options.seed);
+        }
+        
+        // Guidance scale
+        if (options.guidanceScale !== undefined && options.guidanceScale !== null) {
+          falPayload['guidance_scale'] = Number(options.guidanceScale);
+        }
+        
+        // Inference steps
+        if (options.numInferenceSteps !== undefined && options.numInferenceSteps !== null) {
+          falPayload['num_inference_steps'] = Number(options.numInferenceSteps);
+        }
+        
+        // Size
+        if (options.size && ['portrait', 'square', 'landscape'].includes(options.size)) {
+          falPayload['size'] = options.size;
+        }
       }
 
       console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
       console.log(`[${requestId}] Endpoint: https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on`);
+      console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
+      console.log(`[${requestId}] Payload preview:`, {
+        model_image_length: falPayload['model_image']?.length || 0,
+        garment_image_length: falPayload['garment_image']?.length || 0,
+        size: falPayload['size'],
+        has_seed: !!falPayload['seed']
+      });
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -420,20 +451,25 @@ export async function POST(req: NextRequest) {
           } else if (falResponse.status === 429) {
             userErrorMessage = 'Rate limit exceeded. Please try again later.';
           } else if (falResponse.status === 422) {
-            userErrorMessage = 'Image validation failed. Please check image format/size.';
+            userErrorMessage = 'Invalid image format or parameters. Please check your images.';
+            // 422 hatasının detaylarını ekle
+            if (errorData?.detail) {
+              userErrorMessage += ` Details: ${errorData.detail}`;
+            }
           }
           
           console.log(`[${requestId}] Returning error to client...`);
           return NextResponse.json({
             success: false,
             error: userErrorMessage,
-            details: errorData.detail || 'Unknown error',
+            details: errorData?.detail || errorData?.message || 'Unknown error',
             falStatus: falResponse.status,
             code: 'AI_PROCESSING_FAILED',
             responseTime: responseTime,
             debug: {
               requestId,
-              devMode: DEV_TEST_MODE
+              devMode: DEV_TEST_MODE,
+              errorDetails: errorData
             }
           }, { 
             status: falResponse.status > 400 ? falResponse.status : STATUS.SERVER_ERROR 
@@ -446,8 +482,8 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
         // 🎯 QUEUE RESPONSE İŞLEME
-        let pollingAttempts = 0; // ✅ Dışarıda tanımla
-        let finalResult = null; // ✅ Dışarıda tanımla
+        let pollingAttempts = 0;
+        let finalResult = null;
         
         if (falData.status && (falData.status === "IN_QUEUE" || falData.status === "PROCESSING")) {
           console.log(`[${requestId}] 🕒 FAL AI queue response detected`);
@@ -468,7 +504,7 @@ export async function POST(req: NextRequest) {
                   fal_status: falData.status,
                   queue_position: falData.queue_position || 0,
                   processing_time_ms: responseTime,
-                  result_url: falData.response_url, // Response URL'yi kaydet
+                  result_url: falData.response_url,
                   metrics: {
                     queue_info: {
                       status: falData.status,
@@ -488,7 +524,7 @@ export async function POST(req: NextRequest) {
           // ⏱️ Sıra beklerken polling yap
           console.log(`[${requestId}] ⏱️ Starting queue polling...`);
           
-          const maxPollingAttempts = 60; // 30 saniye (500ms * 60)
+          const maxPollingAttempts = 60;
           
           while (pollingAttempts < maxPollingAttempts && !finalResult) {
             pollingAttempts++;
@@ -503,8 +539,14 @@ export async function POST(req: NextRequest) {
                 console.log(`[${requestId}] ✅ Queue processing completed!`);
                 
                 // Sonucu al
-                finalResult = await getFalResult(falData.response_url, FAL_API_KEY);
-                console.log(`[${requestId}] ✓ Final result received`);
+                try {
+                  finalResult = await getFalResult(falData.response_url, FAL_API_KEY);
+                  console.log(`[${requestId}] ✓ Final result received`);
+                } catch (resultError: any) {
+                  console.error(`[${requestId}] ❌ Error fetching final result:`, resultError.message);
+                  // Hata olursa queue bilgilerini döndür
+                  break;
+                }
                 break;
               } else if (statusResult.status === "FAILED") {
                 console.error(`[${requestId}] ❌ Queue processing failed`);
@@ -517,11 +559,12 @@ export async function POST(req: NextRequest) {
             } catch (pollingError: any) {
               console.warn(`[${requestId}] Polling error:`, pollingError.message);
               // Devam et, bir sonraki attempt'te tekrar dene
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
           }
           
           if (!finalResult) {
-            console.error(`[${requestId}] ❌ Max polling attempts reached, returning queue info`);
+            console.error(`[${requestId}] ❌ Max polling attempts reached or result fetch failed`);
             
             // Polling timeout, queue bilgilerini döndür
             const queueResponse = {
@@ -563,41 +606,68 @@ export async function POST(req: NextRequest) {
           }
           
           // Final result'ı işle
-          falData.result = finalResult;
           console.log(`[${requestId}] Final result keys:`, Object.keys(finalResult));
           
         } else {
           console.log(`[${requestId}] ⚡ Immediate response (no queue)`);
+          finalResult = falData;
         }
         
         // 🎯 FİNAL RESULT İŞLEME
         let resultImageUrl: string | null = null;
         let imageDetails: any = null;
         
-        // Sonucu al (queue'dan veya immediate response'dan)
-        const finalData = finalResult || falData;
+        // DEBUG: Tüm response'u logla
+        console.log(`[${requestId}] Full final response structure:`, JSON.stringify(finalResult, null, 2).substring(0, 1000));
         
-        if (finalData.image && finalData.image.url) {
-          resultImageUrl = finalData.image.url;
-          imageDetails = finalData.image;
+        // Kling Kolors formatını kontrol et
+        if (finalResult.image && finalResult.image.url) {
+          resultImageUrl = finalResult.image.url;
+          imageDetails = finalResult.image;
           console.log(`[${requestId}] Found URL in image.url`);
-        } else if (finalData.url) {
-          resultImageUrl = finalData.url;
-          imageDetails = { url: finalData.url };
-          console.log(`[${requestId}] Found URL in finalData.url`);
-        } else if (finalData.output) {
-          resultImageUrl = finalData.output;
-          imageDetails = { url: finalData.output };
-          console.log(`[${requestId}] Found URL in finalData.output`);
+        } else if (finalResult.images && Array.isArray(finalResult.images) && finalResult.images.length > 0) {
+          resultImageUrl = finalResult.images[0].url;
+          imageDetails = finalResult.images[0];
+          console.log(`[${requestId}] Found URL in images[0].url`);
+        } else if (finalResult.url) {
+          resultImageUrl = finalResult.url;
+          imageDetails = { url: finalResult.url };
+          console.log(`[${requestId}] Found URL in finalResult.url`);
+        } else if (finalResult.output) {
+          resultImageUrl = finalResult.output;
+          imageDetails = { url: finalResult.output };
+          console.log(`[${requestId}] Found URL in finalResult.output`);
+        } else if (finalResult.data && finalResult.data.url) {
+          resultImageUrl = finalResult.data.url;
+          imageDetails = finalResult.data;
+          console.log(`[${requestId}] Found URL in data.url`);
         } else {
-          console.log(`[${requestId}] Full final response (first 500 chars):`, JSON.stringify(finalData).substring(0, 500));
+          console.log(`[${requestId}] 🔍 Searching for URL in response...`);
           
-          const responseStr = JSON.stringify(finalData);
-          const urlMatch = responseStr.match(/https?:\/\/[^\s"']+/);
-          if (urlMatch) {
-            resultImageUrl = urlMatch[0];
-            imageDetails = { url: resultImageUrl, foundByRegex: true };
-            console.log(`[${requestId}] Found URL via regex: ${resultImageUrl.substring(0, 100)}...`);
+          // Recursive search for URL
+          function findUrlInObject(obj: any): string | null {
+            if (typeof obj === 'string' && obj.startsWith('http')) {
+              return obj;
+            }
+            
+            if (typeof obj === 'object' && obj !== null) {
+              for (const key in obj) {
+                if (key.toLowerCase().includes('url') && typeof obj[key] === 'string' && obj[key].startsWith('http')) {
+                  return obj[key];
+                }
+                if (typeof obj[key] === 'object') {
+                  const found = findUrlInObject(obj[key]);
+                  if (found) return found;
+                }
+              }
+            }
+            return null;
+          }
+          
+          resultImageUrl = findUrlInObject(finalResult);
+          if (resultImageUrl) {
+            imageDetails = { url: resultImageUrl, foundBySearch: true };
+            console.log(`[${requestId}] Found URL via recursive search: ${resultImageUrl.substring(0, 100)}...`);
           }
         }
         
@@ -612,7 +682,8 @@ export async function POST(req: NextRequest) {
                   status: 'failed',
                   error_message: 'No image URL found in FAL AI response',
                   processing_time_ms: Date.now() - startTime,
-                  model_used: 'kling/v1.5/kolors-virtual-try-on'
+                  model_used: 'kling/v1.5/kolors-virtual-try-on',
+                  fal_response: finalResult // Hata ayıklama için tüm response'u kaydet
                 })
                 .eq('id', historyRecord.id);
             } catch (updateError) {
@@ -624,18 +695,19 @@ export async function POST(req: NextRequest) {
             success: false,
             error: 'No image URL found in response',
             code: 'NO_IMAGE_URL',
-            falResponse: finalData,
+            falResponse: finalResult,
             responseTime: Date.now() - startTime,
             debug: {
               requestId,
-              responseKeys: Object.keys(finalData)
+              responseKeys: Object.keys(finalResult),
+              responseSample: JSON.stringify(finalResult).substring(0, 500)
             }
           }, { 
             status: STATUS.SERVER_ERROR 
           });
         }
 
-        console.log(`[${requestId}] ✓ Final result URL: ${resultImageUrl.substring(0, 100)}...`);
+        console.log(`[${requestId}] ✅ Final result URL: ${resultImageUrl.substring(0, 100)}...`);
 
         // Update history with final result
         if (historyRecord && !historyRecord.id.startsWith('temp-')) {
@@ -652,7 +724,8 @@ export async function POST(req: NextRequest) {
                 model_used: 'kling/v1.5/kolors-virtual-try-on',
                 metrics: {
                   inference_time: Date.now() - startTime,
-                  seed: falPayload.seed || 'not_specified',
+                  // 🎯 DÜZELTME: Köşeli parantez notasyonu kullan
+                  seed: falPayload['seed'] || 'not_specified',
                   model: 'kling/v1.5/kolors-virtual-try-on',
                   image_details: imageDetails || { url: resultImageUrl },
                   was_queued: !!falData.status_url,
@@ -692,7 +765,8 @@ export async function POST(req: NextRequest) {
             userTier: userSubscriptionTier,
             garmentType: options?.category || 'tshirt',
             model: 'kling/v1.5/kolors-virtual-try-on',
-            seed: falPayload.seed || 'not_specified',
+            // 🎯 DÜZELTME: Köşeli parantez notasyonu kullan
+            seed: falPayload['seed'] || 'not_specified',
             processingType: falData.status_url ? 'queued' : 'immediate'
           },
           debug: {
@@ -700,7 +774,7 @@ export async function POST(req: NextRequest) {
             devMode: DEV_TEST_MODE,
             userId: user.id.substring(0, 8),
             falStatus: 'success',
-            ...(falData.status_url && { pollingAttempts }) // ✅ Conditional property
+            ...(falData.status_url && { pollingAttempts })
           }
         };
 
@@ -804,7 +878,7 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     const responseTime = Date.now() - startTime;
-    console.error(`\n[${requestId}] ⚠️ UNHANDLED ERROR:`);
+    console.error(`\n[${requestId}] ⚡ UNHANDLED ERROR:`);
     console.error(`[${requestId}] Message:`, err.message);
     console.error(`[${requestId}] Stack:`, err.stack);
     console.error(`[${requestId}] Time: ${responseTime}ms`);

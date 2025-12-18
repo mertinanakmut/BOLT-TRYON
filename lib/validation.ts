@@ -1,4 +1,4 @@
-// lib/validation.ts
+// lib/validation.ts - FIXED VERSION
 import { z } from 'zod';
 import { STORAGE, GARMENT_CATEGORIES, TRYON_CONFIG, FAL_AI } from './constants';
 
@@ -78,20 +78,19 @@ const base64ImageSchema = z.string()
     message: 'Görsel çok küçük veya geçersiz',
   });
 
-// Try-on request schema with Fal AI specific options
+// 🎯 DEĞİŞİKLİK: generateVideo kaldırıldı, Kling Kolors modeli eklendi
 export const tryOnSchema = z.object({
   modelImage: base64ImageSchema,
   tshirtImage: base64ImageSchema,
-  generateVideo: z.boolean().default(false),
+  // 🎯 generateVideo kaldırıldı - Kling Kolors v1.5 için video desteği yok
   options: z.object({
     category: z.enum(GARMENT_CATEGORIES).default('tshirt'),
     style: z.string().max(50).optional(),
     seed: z.number().int().min(0).max(1000000).optional(),
     garmentColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
     backgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
-    // Fal AI specific options
-    modelName: z.enum([FAL_AI.MODELS.FACE_TO_MANY, FAL_AI.MODELS.CLOTHING_TRYON, FAL_AI.MODELS.OUTFIT_ANYONE])
-      .default(FAL_AI.DEFAULT_MODEL),
+    // 🎯 Kling Kolors v1.5 specific options
+    modelName: z.enum(['kling/v1.5/kolors-virtual-try-on']).default('kling/v1.5/kolors-virtual-try-on'),
     guidanceScale: z.number()
       .min(TRYON_CONFIG.MIN_GUIDANCE_SCALE)
       .max(TRYON_CONFIG.MAX_GUIDANCE_SCALE)
@@ -100,19 +99,15 @@ export const tryOnSchema = z.object({
       .min(TRYON_CONFIG.MIN_NUM_STEPS)
       .max(TRYON_CONFIG.MAX_NUM_STEPS)
       .default(TRYON_CONFIG.DEFAULT_NUM_STEPS),
+    // 🎯 Size parametresi eklendi - Kling Kolors için
+    size: z.enum(['portrait', 'square', 'landscape']).default('portrait'),
+    // 🎯 Diğer Kling Kolors parametreleri
     enableSafetyChecker: z.boolean().default(TRYON_CONFIG.ENABLE_SAFETY_CHECKER),
     syncMode: z.boolean().default(true),
     priority: z.enum(['low', 'normal', 'high']).default('normal'),
   }).optional().default({}),
 }).superRefine((data, ctx) => {
-  // Additional cross-field validation
-  if (data.generateVideo && data.options?.modelName !== FAL_AI.MODELS.FACE_TO_MANY) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Video generation is currently only supported with face-to-many model',
-      path: ['generateVideo'],
-    });
-  }
+  // 🎯 DEĞİŞİKLİK: Video validation kaldırıldı
   
   // Ensure images are not the same (basic check)
   if (data.modelImage === data.tshirtImage) {
@@ -325,6 +320,7 @@ export function sanitizeInput(input: string): string {
     .trim();
 }
 
+// 🎯 DÜZELTİLDİ: validateImageDimensions fonksiyonu - Type-safe hale getirildi
 export function validateImageDimensions(
   base64: string,
   minWidth: number = 100,
@@ -337,6 +333,9 @@ export function validateImageDimensions(
   // This just ensures the image is not obviously too small.
   try {
     const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+    // 🎯 TYPE SAFE FIX: base64Data undefined olabilir diye kontrol ekledik
+    if (!base64Data) return false;
+    
     const binary = atob(base64Data);
     return binary.length > 1024; // At least 1KB
   } catch {
@@ -348,7 +347,7 @@ export function generateRandomSeed(): number {
   return Math.floor(Math.random() * 1000000);
 }
 
-// Fal AI specific validations
+// Fal AI specific validations - GÜNCELLENDİ
 export function validateFalPayload(payload: TryOnInput): {
   isValid: boolean;
   errors: string[];
@@ -378,8 +377,52 @@ export function validateFalPayload(payload: TryOnInput): {
     }
   }
   
+  // 🎯 Kling Kolors spesifik kontroller
+  const modelName = payload.options?.modelName;
+  if (modelName && !modelName.includes('kling')) {
+    errors.push(`Model '${modelName}' is not supported. Please use Kling Kolors v1.5 model.`);
+  }
+  
   return {
     isValid: errors.length === 0,
     errors,
+  };
+}
+
+// 🎯 YENİ: Kling Kolors için spesifik validasyon
+export function validateKlingKolorsPayload(payload: TryOnInput): {
+  isValid: boolean;
+  warnings: string[];
+  suggestions: string[];
+} {
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
+  
+  // Model ve garment görsellerinin boyutları için öneriler
+  const modelSize = validateBase64Image(payload.modelImage).size || 0;
+  const garmentSize = validateBase64Image(payload.tshirtImage).size || 0;
+  
+  // Kling Kolors için optimal boyut önerileri
+  const optimalSize = 2 * 1024 * 1024; // 2MB
+  
+  if (modelSize > optimalSize) {
+    warnings.push('Model image is larger than recommended (2MB). Processing may be slower.');
+    suggestions.push('Consider resizing model image to 1024x1024 pixels for optimal performance.');
+  }
+  
+  if (garmentSize > optimalSize) {
+    warnings.push('Garment image is larger than recommended (2MB). Processing may be slower.');
+    suggestions.push('Consider resizing garment image to 1024x1024 pixels for optimal performance.');
+  }
+  
+  // Size parametresi kontrolü
+  if (payload.options?.size && !['portrait', 'square', 'landscape'].includes(payload.options.size)) {
+    warnings.push(`Size '${payload.options.size}' may not be optimal. Using 'portrait' is recommended for full-body try-on.`);
+  }
+  
+  return {
+    isValid: true, // Sadece uyarılar, hata değil
+    warnings,
+    suggestions,
   };
 }
