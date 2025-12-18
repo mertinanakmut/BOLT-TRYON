@@ -321,7 +321,7 @@ export async function POST(req: NextRequest) {
 
       console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
       // 🎯 DEĞİŞTİ: Endpoint URL güncellendi
-      console.log(`[${requestId}] Endpoint: https://fal.run/fal-ai/kling/v1.5/kolors-virtual-try-on`);
+      console.log(`[${requestId}] Endpoint: https://fal.run/fal-ai/kling/kolors-virtual-try-on`);
       console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
 
       const controller = new AbortController();
@@ -332,7 +332,7 @@ export async function POST(req: NextRequest) {
 
       try {
         // 🎯 DEĞİŞTİ: Yeni endpoint kullanılıyor
-        const falResponse = await fetch('https://fal.run/fal-ai/kling/v1.5/kolors-virtual-try-on', {
+        const falResponse = await fetch('https://fal.run/fal-ai/kling/kolors-virtual-try-on', {
           method: 'POST',
           headers: {
             'Authorization': `Key ${FAL_API_KEY}`,
