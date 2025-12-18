@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       console.log(`[${requestId}] 🔐 NORMAL MODE - Checking authentication`);
       const { data: authData, error: userError } = await supabase.auth.getUser();
       
-      if (userError || !authData.user) {
+      if (userError || !authData?.user) {
         console.warn(`[${requestId}] ❌ Unauthorized:`, userError?.message);
         const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
         return NextResponse.json(
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Request body al
     console.log(`[${requestId}] Reading request body...`);
-    let body;
+    let body: any;
     try {
       body = await req.json();
       console.log(`[${requestId}] ✓ Body received, keys:`, Object.keys(body));
@@ -304,6 +304,8 @@ export async function POST(req: NextRequest) {
         image_url: string;
         garment_image_url: string;
         seed?: number;
+        guidance_scale?: number;
+        num_inference_steps?: number;
         [key: string]: any;
       }
       
@@ -429,7 +431,7 @@ export async function POST(req: NextRequest) {
           });
         }
         
-        let resultImageUrl = null;
+        let resultImageUrl: string | null = null;
         if (falData.image && falData.image.url) {
           resultImageUrl = falData.image.url;
           console.log(`[${requestId}] Found URL in image.url`);

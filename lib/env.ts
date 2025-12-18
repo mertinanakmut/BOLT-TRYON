@@ -13,6 +13,9 @@ const envSchema = z.object({
   FAL_API_KEY_ID: z.string().min(1).optional(),
   FAL_API_KEY_SECRET: z.string().min(1).optional(),
   
+  // === Development & Testing ===
+  DEV_TEST_MODE: z.enum(['true', 'false']).default('false'), // EKLENDİ
+  
   // === Security ===
   SESSION_SECRET: z.string().min(32).optional(),
   ENCRYPTION_KEY: z.string().min(32).optional(),
@@ -28,6 +31,7 @@ const parsed = envSchema.safeParse({
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   FAL_API_KEY: process.env.FAL_API_KEY,
+  DEV_TEST_MODE: process.env.DEV_TEST_MODE, // EKLENDİ
   SESSION_SECRET: process.env.SESSION_SECRET,
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   NODE_ENV: process.env.NODE_ENV,
@@ -72,6 +76,9 @@ export const env = {
   FAL_API_KEY: falApiKeyForAuth,
   FAL_KEY_ID: falKeyId,
   FAL_KEY_SECRET: falKeySecret,
+  
+  // Development & Testing
+  DEV_TEST_MODE: parsed.success ? (parsed.data.DEV_TEST_MODE === 'true') : false, // EKLENDİ
   
   // Security
   SESSION_SECRET: parsed.success ? parsed.data.SESSION_SECRET : undefined,
