@@ -46,6 +46,50 @@ async function prepareImageForFal(input: string): Promise<string> {
   }
 }
 
+// FAL AI queue durumunu kontrol et
+async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<any> {
+  try {
+    const response = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Key ${apiKey}`,
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Status check failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Queue status check error:', error);
+    throw error;
+  }
+}
+
+// FAL AI response URL'den sonucu al
+async function getFalResult(responseUrl: string, apiKey: string): Promise<any> {
+  try {
+    const response = await fetch(responseUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Key ${apiKey}`,
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Result fetch failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Result fetch error:', error);
+    throw error;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   let historyRecord: any = null;
@@ -57,7 +101,7 @@ export async function POST(req: NextRequest) {
   
   try {
     // 1. DEV_TEST_MODE kontrolü - env'den al
-    const DEV_TEST_MODE = env.DEV_TEST_MODE; // ✅ DÜZELTİLDİ: process.env yerine env
+    const DEV_TEST_MODE = env.DEV_TEST_MODE;
     console.log(`[${requestId}] DEV_TEST_MODE: ${DEV_TEST_MODE}`);
     console.log(`[${requestId}] FAL_API_KEY exists: ${!!env.FAL_API_KEY}`);
     
@@ -84,28 +128,25 @@ export async function POST(req: NextRequest) {
     if (DEV_TEST_MODE) {
       console.log(`[${requestId}] 🧪 DEV TEST MODE ACTIVE - Bypassing authentication`);
       
-      // ✅ DÜZELTİLDİ: SQL'deki UUID ile aynı olmalı
-      const testUserId = '00000000-0000-0000-0000-000000000123'; // SQL'deki UUID
+      const testUserId = '00000000-0000-0000-0000-000000000123';
       console.log(`[${requestId}] Using fixed test user UUID: ${testUserId}`);
       
       user = {
         id: testUserId,
         email: 'dev@test.com',
-        credits: 100, // Direk burada tanımla
+        credits: 100,
         subscription_tier: 'free'
       };
       
-      // Test user için profile kontrol et (ama artık zaten yoksa oluşturmaya çalışma)
       console.log(`[${requestId}] Checking test user profile with UUID: ${user.id}`);
       const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
         .eq('id', user.id)
-        .maybeSingle(); // ✅ DÜZELTİLDİ: single yerine maybeSingle
+        .maybeSingle();
       
       if (profileError) {
         console.warn(`[${requestId}] Profile query warning:`, profileError.message);
-        // Hata olsa bile devam et, çünkü zaten SQL'de oluşturduk
       }
       
       if (existingProfile) {
@@ -114,7 +155,6 @@ export async function POST(req: NextRequest) {
         user.subscription_tier = existingProfile.subscription_tier;
       } else {
         console.log(`[${requestId}] Test profile not found, using default credits (100)`);
-        // SQL zaten oluşturdu, o yüzden tekrar oluşturmaya çalışma
       }
       
     } else {
@@ -176,14 +216,13 @@ export async function POST(req: NextRequest) {
 
     const { modelImage, tshirtImage, generateVideo = false, options } = validationResult.data;
 
-    // 5. Kredi kontrolü - Basitleştir
+    // 5. Kredi kontrolü
     console.log(`[${requestId}] Checking credits...`);
     const requiredCredits = CREDITS.TRYON_COST;
     
     let userCredits = user.credits || 100;
     let userSubscriptionTier = user.subscription_tier || 'free';
     
-    // DEV_TEST_MODE'da zaten kredileri user objesinde var
     if (!DEV_TEST_MODE) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -219,7 +258,7 @@ export async function POST(req: NextRequest) {
     // 6. Concurrent request kontrolü (skip)
     console.log(`[${requestId}] Skipping concurrent check for debug...`);
 
-    // 7. History kaydı - HATA YÖNETİMİ İYİLEŞTİRİLDİ
+    // 7. History kaydı
     console.log(`[${requestId}] Creating history record...`);
     try {
       const { data: newHistoryRecord, error: historyInsertError } = await supabase
@@ -241,7 +280,6 @@ export async function POST(req: NextRequest) {
 
       if (historyInsertError) {
         console.warn(`[${requestId}] ⚠️ History insert error (continuing anyway):`, historyInsertError.message);
-        // Temp history oluştur
         historyRecord = { 
           id: `temp-${requestId}`,
           user_id: user.id
@@ -314,7 +352,6 @@ export async function POST(req: NextRequest) {
 
       console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
       console.log(`[${requestId}] Endpoint: https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on`);
-      console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -323,7 +360,7 @@ export async function POST(req: NextRequest) {
       }, 90000);
 
       try {
-        // ✅ DOĞRU ENDPOINT
+        // FAL AI'ye istek gönder
         const falResponse = await fetch('https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on', {
           method: 'POST',
           headers: {
@@ -357,7 +394,6 @@ export async function POST(req: NextRequest) {
             errorData = { detail: errorText };
           }
           
-          // History'i güncelle (sadece gerçek bir history kaydı varsa)
           if (historyRecord && !historyRecord.id.startsWith('temp-')) {
             try {
               await supabase
@@ -405,87 +441,226 @@ export async function POST(req: NextRequest) {
         }
 
         const falData = await falResponse.json();
-        console.log(`[${requestId}] ✅ FAL AI SUCCESS!`);
+        console.log(`[${requestId}] ✅ FAL AI initial response received`);
         console.log(`[${requestId}] Response type:`, typeof falData);
         console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
-        // 🎯 Kling Kolors response formatı
-        if (falData.image) {
-          console.log(`[${requestId}] Image object found:`, {
-            hasUrl: !!falData.image.url,
-            width: falData.image.width,
-            height: falData.image.height,
-            contentType: falData.image.content_type,
-            fileSize: falData.image.file_size
-          });
+        // 🎯 QUEUE RESPONSE İŞLEME
+        let pollingAttempts = 0; // ✅ Dışarıda tanımla
+        let finalResult = null; // ✅ Dışarıda tanımla
+        
+        if (falData.status && (falData.status === "IN_QUEUE" || falData.status === "PROCESSING")) {
+          console.log(`[${requestId}] 🕒 FAL AI queue response detected`);
+          console.log(`[${requestId}]   Request ID: ${falData.request_id}`);
+          console.log(`[${requestId}]   Status: ${falData.status}`);
+          console.log(`[${requestId}]   Queue position: ${falData.queue_position || 0}`);
+          console.log(`[${requestId}]   Status URL: ${falData.status_url}`);
+          console.log(`[${requestId}]   Response URL: ${falData.response_url}`);
+          
+          // History'i queue durumuyla güncelle
+          if (historyRecord && !historyRecord.id.startsWith('temp-')) {
+            try {
+              await supabase
+                .from('tryon_history')
+                .update({
+                  status: 'queued',
+                  fal_request_id: falData.request_id,
+                  fal_status: falData.status,
+                  queue_position: falData.queue_position || 0,
+                  processing_time_ms: responseTime,
+                  result_url: falData.response_url, // Response URL'yi kaydet
+                  metrics: {
+                    queue_info: {
+                      status: falData.status,
+                      queue_position: falData.queue_position || 0,
+                      has_status_url: !!falData.status_url,
+                      has_response_url: !!falData.response_url
+                    }
+                  }
+                })
+                .eq('id', historyRecord.id);
+              console.log(`[${requestId}] ✓ History updated with queue info`);
+            } catch (updateError) {
+              console.warn(`[${requestId}] Could not update history:`, updateError);
+            }
+          }
+          
+          // ⏱️ Sıra beklerken polling yap
+          console.log(`[${requestId}] ⏱️ Starting queue polling...`);
+          
+          const maxPollingAttempts = 60; // 30 saniye (500ms * 60)
+          
+          while (pollingAttempts < maxPollingAttempts && !finalResult) {
+            pollingAttempts++;
+            
+            try {
+              console.log(`[${requestId}] 🔄 Polling attempt ${pollingAttempts}/${maxPollingAttempts}...`);
+              
+              const statusResult = await checkFalQueueStatus(falData.status_url, FAL_API_KEY);
+              console.log(`[${requestId}]   Polling status: ${statusResult.status}`);
+              
+              if (statusResult.status === "COMPLETED") {
+                console.log(`[${requestId}] ✅ Queue processing completed!`);
+                
+                // Sonucu al
+                finalResult = await getFalResult(falData.response_url, FAL_API_KEY);
+                console.log(`[${requestId}] ✓ Final result received`);
+                break;
+              } else if (statusResult.status === "FAILED") {
+                console.error(`[${requestId}] ❌ Queue processing failed`);
+                throw new Error(`FAL AI processing failed: ${statusResult.error || 'Unknown error'}`);
+              }
+              
+              // Bekle
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+            } catch (pollingError: any) {
+              console.warn(`[${requestId}] Polling error:`, pollingError.message);
+              // Devam et, bir sonraki attempt'te tekrar dene
+            }
+          }
+          
+          if (!finalResult) {
+            console.error(`[${requestId}] ❌ Max polling attempts reached, returning queue info`);
+            
+            // Polling timeout, queue bilgilerini döndür
+            const queueResponse = {
+              success: true,
+              data: {
+                status: "queued",
+                queueRequestId: falData.request_id,
+                statusUrl: falData.status_url,
+                responseUrl: falData.response_url,
+                queuePosition: falData.queue_position || 0,
+                estimatedWaitTime: "10-30 seconds"
+              },
+              meta: {
+                message: "Image generation queued successfully",
+                queuePosition: falData.queue_position || 0,
+                responseTime: responseTime
+              },
+              debug: {
+                requestId,
+                falStatus: falData.status,
+                pollingAttempts,
+                queueInfo: {
+                  hasStatusUrl: !!falData.status_url,
+                  hasResponseUrl: !!falData.response_url
+                }
+              }
+            };
+            
+            console.log(`[${requestId}] 🕒 Returning queue info to client (frontend will poll)`);
+            return NextResponse.json(queueResponse, {
+              status: STATUS.SUCCESS,
+              headers: {
+                'X-Request-ID': requestId,
+                'X-Queue-Request-ID': falData.request_id,
+                'X-FAL-Status': falData.status,
+                'X-Queue-Position': (falData.queue_position || 0).toString()
+              }
+            });
+          }
+          
+          // Final result'ı işle
+          falData.result = finalResult;
+          console.log(`[${requestId}] Final result keys:`, Object.keys(finalResult));
+          
+        } else {
+          console.log(`[${requestId}] ⚡ Immediate response (no queue)`);
         }
         
+        // 🎯 FİNAL RESULT İŞLEME
         let resultImageUrl: string | null = null;
-        if (falData.image && falData.image.url) {
-          resultImageUrl = falData.image.url;
+        let imageDetails: any = null;
+        
+        // Sonucu al (queue'dan veya immediate response'dan)
+        const finalData = finalResult || falData;
+        
+        if (finalData.image && finalData.image.url) {
+          resultImageUrl = finalData.image.url;
+          imageDetails = finalData.image;
           console.log(`[${requestId}] Found URL in image.url`);
-        } else if (falData.url) {
-          resultImageUrl = falData.url;
-          console.log(`[${requestId}] Found URL in falData.url`);
-        } else if (falData.output) {
-          resultImageUrl = falData.output;
-          console.log(`[${requestId}] Found URL in falData.output`);
+        } else if (finalData.url) {
+          resultImageUrl = finalData.url;
+          imageDetails = { url: finalData.url };
+          console.log(`[${requestId}] Found URL in finalData.url`);
+        } else if (finalData.output) {
+          resultImageUrl = finalData.output;
+          imageDetails = { url: finalData.output };
+          console.log(`[${requestId}] Found URL in finalData.output`);
         } else {
-          console.log(`[${requestId}] Full FAL response (first 500 chars):`, JSON.stringify(falData).substring(0, 500));
+          console.log(`[${requestId}] Full final response (first 500 chars):`, JSON.stringify(finalData).substring(0, 500));
           
-          // Alternatif URL arama
-          const responseStr = JSON.stringify(falData);
+          const responseStr = JSON.stringify(finalData);
           const urlMatch = responseStr.match(/https?:\/\/[^\s"']+/);
           if (urlMatch) {
             resultImageUrl = urlMatch[0];
+            imageDetails = { url: resultImageUrl, foundByRegex: true };
             console.log(`[${requestId}] Found URL via regex: ${resultImageUrl.substring(0, 100)}...`);
           }
         }
         
         if (!resultImageUrl) {
-          console.error(`[${requestId}] ❌ No image URL in response`);
-          console.log(`[${requestId}] Full response:`, falData);
+          console.error(`[${requestId}] ❌ No image URL in final response`);
           
-          // Hata durumunda da partial response döndür
+          if (historyRecord && !historyRecord.id.startsWith('temp-')) {
+            try {
+              await supabase
+                .from('tryon_history')
+                .update({
+                  status: 'failed',
+                  error_message: 'No image URL found in FAL AI response',
+                  processing_time_ms: Date.now() - startTime,
+                  model_used: 'kling/v1.5/kolors-virtual-try-on'
+                })
+                .eq('id', historyRecord.id);
+            } catch (updateError) {
+              console.warn(`[${requestId}] Could not update history:`, updateError);
+            }
+          }
+          
           return NextResponse.json({
             success: false,
             error: 'No image URL found in response',
             code: 'NO_IMAGE_URL',
-            falResponse: falData,
-            responseTime: responseTime,
+            falResponse: finalData,
+            responseTime: Date.now() - startTime,
             debug: {
               requestId,
-              responseKeys: Object.keys(falData)
+              responseKeys: Object.keys(finalData)
             }
           }, { 
             status: STATUS.SERVER_ERROR 
           });
         }
 
-        console.log(`[${requestId}] ✓ Result URL: ${resultImageUrl.substring(0, 100)}...`);
+        console.log(`[${requestId}] ✓ Final result URL: ${resultImageUrl.substring(0, 100)}...`);
 
-        // Update history (sadece gerçek bir history kaydı varsa)
+        // Update history with final result
         if (historyRecord && !historyRecord.id.startsWith('temp-')) {
           try {
-            console.log(`[${requestId}] Updating history as completed...`);
+            console.log(`[${requestId}] Updating history with final result...`);
             await supabase
               .from('tryon_history')
               .update({
                 status: 'completed',
                 result_url: resultImageUrl,
                 video_url: null,
-                processing_time_ms: responseTime,
+                processing_time_ms: Date.now() - startTime,
                 fal_request_id: falData.request_id || `kling_${Date.now()}`,
                 model_used: 'kling/v1.5/kolors-virtual-try-on',
                 metrics: {
-                  inference_time: responseTime,
+                  inference_time: Date.now() - startTime,
                   seed: falPayload.seed || 'not_specified',
                   model: 'kling/v1.5/kolors-virtual-try-on',
-                  image_details: falData.image || { url: resultImageUrl }
+                  image_details: imageDetails || { url: resultImageUrl },
+                  was_queued: !!falData.status_url,
+                  queue_position: falData.queue_position || 0
                 }
               })
               .eq('id', historyRecord.id);
-            console.log(`[${requestId}] ✓ History updated`);
+            console.log(`[${requestId}] ✓ History updated with final result`);
           } catch (updateError) {
             console.warn(`[${requestId}] Could not update history:`, updateError);
           }
@@ -498,11 +673,17 @@ export async function POST(req: NextRequest) {
           data: {
             imageUrl: resultImageUrl,
             videoUrl: null,
-            generationTimeMs: responseTime,
+            generationTimeMs: totalTime,
             remainingCredits: userCredits - requiredCredits,
             requestId: falData.request_id || `kling_${Date.now()}`,
             historyId: historyRecord?.id || 'temp-id',
-            imageDetails: falData.image || { url: resultImageUrl }
+            imageDetails: imageDetails || { url: resultImageUrl },
+            wasQueued: !!falData.status_url,
+            queueInfo: falData.status_url ? {
+              queuePosition: falData.queue_position || 0,
+              statusUrl: falData.status_url,
+              responseUrl: falData.response_url
+            } : null
           },
           meta: {
             responseTime: totalTime,
@@ -511,18 +692,21 @@ export async function POST(req: NextRequest) {
             userTier: userSubscriptionTier,
             garmentType: options?.category || 'tshirt',
             model: 'kling/v1.5/kolors-virtual-try-on',
-            seed: falPayload.seed || 'not_specified'
+            seed: falPayload.seed || 'not_specified',
+            processingType: falData.status_url ? 'queued' : 'immediate'
           },
           debug: {
             requestId,
             devMode: DEV_TEST_MODE,
             userId: user.id.substring(0, 8),
-            falStatus: 'success'
+            falStatus: 'success',
+            ...(falData.status_url && { pollingAttempts }) // ✅ Conditional property
           }
         };
 
         console.log(`[${requestId}] 🎉 TRY-ON COMPLETED SUCCESSFULLY!`);
         console.log(`[${requestId}] Total time: ${totalTime}ms`);
+        console.log(`[${requestId}] Processing type: ${falData.status_url ? 'Queued' : 'Immediate'}`);
         console.log(`[${requestId}] Image URL: ${resultImageUrl.substring(0, 150)}`);
         console.log(`[${requestId}] =====================================\n`);
 
@@ -534,7 +718,8 @@ export async function POST(req: NextRequest) {
             'X-Response-Time': totalTime.toString(),
             'X-Credits-Used': requiredCredits.toString(),
             'X-Remaining-Credits': (userCredits - requiredCredits).toString(),
-            'X-FAL-Model': 'kling/v1.5/kolors-virtual-try-on'
+            'X-FAL-Model': 'kling/v1.5/kolors-virtual-try-on',
+            'X-Processing-Type': falData.status_url ? 'queued' : 'immediate'
           }
         });
 
