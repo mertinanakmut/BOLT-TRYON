@@ -17,17 +17,7 @@
     "baseUrl": ".",
     
     "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["./components/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/app/*": ["./app/*"],
-      "@/hooks/*": ["./hooks/*"],
-      "@/contexts/*": ["./contexts/*"],
-      "@/types/*": ["./types/*"],
-      "@/scripts/*": ["./scripts/*"],
-      "@/backups/*": ["./backups/*"],
-      "@/styles/*": ["./styles/*"],
-      "@/public/*": ["./public/*"]
+      "@/*": ["./*"]
     },
     
     "plugins": [
@@ -36,57 +26,15 @@
       }
     ],
     
-    "types": ["jest", "@testing-library/jest-dom", "node"],
-    
-    // Yeni eklenen önemli ayarlar
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
-    "exactOptionalPropertyTypes": false,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "importsNotUsedAsValues": "error",
-    
-    // Strict mode için ek ayarlar
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "useUnknownInCatchVariables": true,
-    "noImplicitAny": true,
-    "noImplicitThis": true,
-    
-    // Debug için
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true
+    "types": ["jest", "@testing-library/jest-dom", "node"]
   },
   
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "__tests__/**/*.ts",
-    "__tests__/**/*.tsx",
-    "jest.setup.js",
-    "jest.config.js",
-    "next.config.js",
-    "next.config.mjs"
+    ".next/types/**/*.ts"
   ],
   
-  "exclude": [
-    "node_modules",
-    "virtual-tryon-mobile",
-    ".next",
-    "backups",
-    "coverage",
-    "dist",
-    "build",
-    ".turbo"
-  ]
+  "exclude": ["node_modules", ".next"]
 }

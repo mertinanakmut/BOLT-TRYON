@@ -1,4 +1,4 @@
-// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION - FINAL & CORRECTED
+// app/api/tryon/route.ts - KLING KOLORS V1.5 VERSION - FINAL & OPTIMIZED
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +11,11 @@ import { env } from '@/lib/env';
 // DEBUG: Başlangıç log'u
 console.log('🔧 API Route yüklendi:', new Date().toISOString());
 
+// 🎯 OPTİMİZASYON: Environment kontrolü
+if (!env.FAL_API_KEY) {
+  console.error('❌ FAL_API_KEY missing in environment!');
+}
+
 // 🎯 DÜZELTME: API'nin beklediği Data URL formatını döndür
 async function prepareImageForFal(input: string): Promise<string> {
   console.log('🖼️ prepareImageForFal called, input length:', input?.length || 0);
@@ -19,14 +24,12 @@ async function prepareImageForFal(input: string): Promise<string> {
     // Eğer zaten data URL formatındaysa, olduğu gibi döndür
     if (input.startsWith('data:image/')) {
       console.log('✓ Data URL formatı tespit edildi, direkt kullanılıyor');
-      return input; // DEĞİŞİKLİK: Doğrudan döndür
+      return input;
     }
     
     // Eğer saf base64 string ise, data URL formatına çevir
     const cleanStr = input.replace(/\s/g, '');
     if (/^[A-Za-z0-9+/]+=*$/.test(cleanStr) && cleanStr.length % 4 === 0) {
-      // NOT: API belgelerinde herhangi bir image tipi (jpeg/png) kabul ediliyor.
-      // Pratikte 'image/jpeg' veya 'image/png' kullanabilirsiniz.
       const result = `data:image/jpeg;base64,${cleanStr}`;
       console.log('✓ Saf base64, Data URL formatına çevrildi, length:', result.length);
       return result;
@@ -39,7 +42,7 @@ async function prepareImageForFal(input: string): Promise<string> {
   }
 }
 
-// 🎯 DÜZELTME: FAL AI queue durumunu kontrol et
+// 🎯 OPTİMİZASYON: Daha hızlı queue polling
 async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<any> {
   try {
     const response = await fetch(statusUrl, {
@@ -48,17 +51,17 @@ async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<a
         'Authorization': `Key ${apiKey}`,
         'Accept': 'application/json',
       },
+      // Timeout ekleyelim
+      signal: AbortSignal.timeout(10000),
     });
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Queue status check error details:', {
+      console.error('❌ Queue status check error:', {
         status: response.status,
-        statusText: response.statusText,
-        errorBody: errorText,
         url: statusUrl
       });
-      throw new Error(`Status check failed: ${response.status} - ${errorText}`);
+      throw new Error(`Status check failed: ${response.status}`);
     }
     
     return await response.json();
@@ -68,7 +71,7 @@ async function checkFalQueueStatus(statusUrl: string, apiKey: string): Promise<a
   }
 }
 
-// 🎯 DÜZELTME: FAL AI response URL'den sonucu al
+// 🎯 OPTİMİZASYON: FAL AI result alma
 async function getFalResult(responseUrl: string, apiKey: string): Promise<any> {
   try {
     console.log('📥 Fetching FAL result from:', responseUrl);
@@ -78,21 +81,15 @@ async function getFalResult(responseUrl: string, apiKey: string): Promise<any> {
         'Authorization': `Key ${apiKey}`,
         'Accept': 'application/json',
       },
+      signal: AbortSignal.timeout(15000),
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Result fetch error details:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorBody: errorText,
-        url: responseUrl
-      });
-      throw new Error(`Result fetch failed: ${response.status} - ${errorText.substring(0, 200)}`);
+      throw new Error(`Result fetch failed: ${response.status}`);
     }
     
     const result = await response.json();
-    console.log('✅ FAL result received, keys:', Object.keys(result));
+    console.log('✅ FAL result received');
     return result;
   } catch (error) {
     console.error('Result fetch error:', error);
@@ -107,13 +104,23 @@ export async function POST(req: NextRequest) {
   
   console.log(`\n\n🚀 ========== [${requestId}] API ÇAĞRILDI ==========`);
   console.log(`[${requestId}] Time: ${new Date().toISOString()}`);
-  console.log(`[${requestId}] URL: ${req.url}`);
   
   try {
-    // 1. DEV_TEST_MODE kontrolü
+    // 1. Environment kontrolü
     const DEV_TEST_MODE = env.DEV_TEST_MODE;
-    console.log(`[${requestId}] DEV_TEST_MODE: ${DEV_TEST_MODE}`);
-    console.log(`[${requestId}] FAL_API_KEY exists: ${!!env.FAL_API_KEY}`);
+    const FAL_API_KEY = env.FAL_API_KEY;
+    
+    if (!FAL_API_KEY) {
+      console.error(`[${requestId}] ❌ FAL_API_KEY missing!`);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: ERRORS.FAL.API_KEY_MISSING,
+          code: 'SERVER_CONFIG_ERROR'
+        },
+        { status: STATUS.SERVER_ERROR }
+      );
+    }
     
     let user: any;
     let supabase;
@@ -135,12 +142,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 3. Authentication
     if (DEV_TEST_MODE) {
       console.log(`[${requestId}] 🧪 DEV TEST MODE ACTIVE - Bypassing authentication`);
       
       const testUserId = '00000000-0000-0000-0000-000000000123';
-      console.log(`[${requestId}] Using fixed test user UUID: ${testUserId}`);
-      
       user = {
         id: testUserId,
         email: 'dev@test.com',
@@ -148,23 +154,15 @@ export async function POST(req: NextRequest) {
         subscription_tier: 'free'
       };
       
-      console.log(`[${requestId}] Checking test user profile with UUID: ${user.id}`);
-      const { data: existingProfile, error: profileError } = await supabase
+      const { data: existingProfile } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
         .eq('id', user.id)
         .maybeSingle();
       
-      if (profileError) {
-        console.warn(`[${requestId}] Profile query warning:`, profileError.message);
-      }
-      
       if (existingProfile) {
-        console.log(`[${requestId}] ✓ Test profile exists, credits: ${existingProfile.credits}`);
         user.credits = existingProfile.credits;
         user.subscription_tier = existingProfile.subscription_tier;
-      } else {
-        console.log(`[${requestId}] Test profile not found, using default credits (100)`);
       }
       
     } else {
@@ -173,7 +171,6 @@ export async function POST(req: NextRequest) {
       
       if (userError || !authData?.user) {
         console.warn(`[${requestId}] ❌ Unauthorized:`, userError?.message);
-        const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
         return NextResponse.json(
           { 
             success: false, 
@@ -187,14 +184,12 @@ export async function POST(req: NextRequest) {
       console.log(`[${requestId}] ✓ User authenticated: ${user.id.substring(0, 8)}`);
     }
 
-    // 3. Request body al
+    // 4. Request body al
     console.log(`[${requestId}] Reading request body...`);
     let body: any;
     try {
       body = await req.json();
-      console.log(`[${requestId}] ✓ Body received, keys:`, Object.keys(body));
-      console.log(`[${requestId}]   modelImage length: ${body.modelImage?.length || 0}`);
-      console.log(`[${requestId}]   tshirtImage length: ${body.tshirtImage?.length || 0}`);
+      console.log(`[${requestId}] ✓ Body received`);
     } catch (parseError: any) {
       console.error(`[${requestId}] ❌ JSON parse error:`, parseError.message);
       return NextResponse.json(
@@ -207,7 +202,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Zod validation
+    // 5. Validation
     console.log(`[${requestId}] Validating with Zod...`);
     const validationResult = tryOnSchema.safeParse(body);
     if (!validationResult.success) {
@@ -216,7 +211,6 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: ERRORS.VALIDATION.REQUIRED,
-          details: validationResult.error.format(),
           code: 'VALIDATION_ERROR'
         },
         { status: STATUS.BAD_REQUEST }
@@ -226,7 +220,7 @@ export async function POST(req: NextRequest) {
 
     const { modelImage, tshirtImage, options } = validationResult.data;
 
-    // 5. Kredi kontrolü
+    // 6. Kredi kontrolü
     console.log(`[${requestId}] Checking credits...`);
     const requiredCredits = CREDITS.TRYON_COST;
     
@@ -234,20 +228,15 @@ export async function POST(req: NextRequest) {
     let userSubscriptionTier = user.subscription_tier || 'free';
     
     if (!DEV_TEST_MODE) {
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('credits, subscription_tier')
         .eq('id', user.id)
         .maybeSingle();
 
-      if (profileError) {
-        console.warn(`[${requestId}] Profile fetch warning:`, profileError?.message);
-      } else if (profile) {
+      if (profile) {
         userCredits = profile.credits;
         userSubscriptionTier = profile.subscription_tier || 'free';
-        console.log(`[${requestId}] ✓ Profile found, credits: ${userCredits}`);
-      } else {
-        console.log(`[${requestId}] No profile found, using defaults`);
       }
     }
     
@@ -264,9 +253,6 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[${requestId}] ✓ Credits available: ${userCredits}`);
-
-    // 6. Concurrent request kontrolü (skip)
-    console.log(`[${requestId}] Skipping concurrent check for debug...`);
 
     // 7. History kaydı
     console.log(`[${requestId}] Creating history record...`);
@@ -289,7 +275,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (historyInsertError) {
-        console.warn(`[${requestId}] ⚠️ History insert error (continuing anyway):`, historyInsertError.message);
+        console.warn(`[${requestId}] ⚠️ History insert error:`, historyInsertError.message);
         historyRecord = { 
           id: `temp-${requestId}`,
           user_id: user.id
@@ -299,70 +285,30 @@ export async function POST(req: NextRequest) {
         console.log(`[${requestId}] ✓ History record created: ${historyRecord.id}`);
       }
     } catch (historyError: any) {
-      console.warn(`[${requestId}] ⚠️ History creation failed, continuing:`, historyError.message);
+      console.warn(`[${requestId}] ⚠️ History creation failed:`, historyError.message);
       historyRecord = { 
         id: `temp-${requestId}`,
         user_id: user.id
       };
     }
 
-    // 8. Kredi rezervasyonu (skip for now)
-    console.log(`[${requestId}] Skipping credit reservation for FAL AI test...`);
-
-    // 9. FAL AI API Call - KLING KOLORS V1.5 - RESMİ API'YE GÖRE DÜZELTİLDİ
+    // 8. FAL AI API Call
     console.log(`[${requestId}] Preparing FAL AI call...`);
     
-    const FAL_API_KEY = env.FAL_API_KEY;
-    if (!FAL_API_KEY) {
-      console.error(`[${requestId}] ❌ FAL_API_KEY missing!`);
-      console.log(`[${requestId}] Check .env.local file for FAL_API_KEY`);
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: ERRORS.FAL.API_KEY_MISSING,
-          code: 'SERVER_CONFIG_ERROR'
-        },
-        { status: STATUS.SERVER_ERROR }
-      );
-    }
-
-    console.log(`[${requestId}] ✓ FAL API Key found (starts with: ${FAL_API_KEY.substring(0, 10)}...)`);
-
     try {
       // Görselleri Data URL formatına çevir
       console.log(`[${requestId}] Preparing images (Data URL format)...`);
-      const humanImageDataUrl = await prepareImageForFal(modelImage);   // DEĞİŞİKLİK: Data URL
-      const garmentImageDataUrl = await prepareImageForFal(tshirtImage); // DEĞİŞİKLİK: Data URL
+      const humanImageDataUrl = await prepareImageForFal(modelImage);
+      const garmentImageDataUrl = await prepareImageForFal(tshirtImage);
       
       console.log(`[${requestId}] ✓ Images prepared as Data URL`);
-      console.log(`[${requestId}]   humanImage (first 60 chars): ${humanImageDataUrl.substring(0, 60)}...`);
-      console.log(`[${requestId}]   garmentImage (first 60 chars): ${garmentImageDataUrl.substring(0, 60)}...`);
-      console.log(`[${requestId}]   humanImage length: ${humanImageDataUrl.length}`);
-      console.log(`[${requestId}]   garmentImage length: ${garmentImageDataUrl.length}`);
 
-      // 🎯 DÜZELTME: RESMİ API'YE GÖRE PAYLOAD
-      // API belgeleri: "human_image_url" ve "garment_image_url" (Data URL veya HTTP URL)
-      // "seed", "size", "guidance_scale" gibi parametreler DESTEKLENMİYOR.
-      interface FalPayload {
-        human_image_url: string;    // DEĞİŞİKLİK: model_image -> human_image_url
-        garment_image_url: string;  // DEĞİŞİKLİK: garment_image -> garment_image_url
-        // NOT: "seed", "size", "guidance_scale", "num_inference_steps" YOK.
-      }
-      
-      const falPayload: FalPayload = {
-        human_image_url: humanImageDataUrl,    // DEĞİŞİKLİK
-        garment_image_url: garmentImageDataUrl // DEĞİŞİKLİK
+      const falPayload = {
+        human_image_url: humanImageDataUrl,
+        garment_image_url: garmentImageDataUrl
       };
 
       console.log(`[${requestId}] 📤 Sending to FAL AI (Kling Kolors v1.5)...`);
-      console.log(`[${requestId}] Endpoint: https://queue.fal.run/fal-ai/kling/v1-5/kolors-virtual-try-on`);
-      console.log(`[${requestId}] Payload keys:`, Object.keys(falPayload));
-      console.log(`[${requestId}] Payload debug:`, {
-        human_image_url_starts_with: falPayload.human_image_url.substring(0, 30),
-        garment_image_url_starts_with: falPayload.garment_image_url.substring(0, 30),
-        human_image_url_length: falPayload.human_image_url.length,
-        garment_image_url_length: falPayload.garment_image_url.length
-      });
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -388,23 +334,13 @@ export async function POST(req: NextRequest) {
         
         console.log(`[${requestId}] 📥 FAL AI response received`);
         console.log(`[${requestId}]   Status: ${falResponse.status}`);
-        console.log(`[${requestId}]   Time: ${responseTime}ms`);
-        console.log(`[${requestId}]   OK: ${falResponse.ok}`);
 
-        // 422 HATASI DETAYLI LOG
         if (!falResponse.ok) {
           let errorData: any;
           try {
             errorData = await falResponse.json();
-            console.error(`[${requestId}] ❌ FAL AI API Error (JSON):`, {
-              status: falResponse.status,
-              statusText: falResponse.statusText,
-              error: errorData
-            });
-          } catch (jsonError: any) {
-            const errorText = await falResponse.text();
-            console.error(`[${requestId}] ❌ FAL AI API Error (Text):`, errorText);
-            errorData = { detail: errorText };
+          } catch {
+            errorData = { detail: await falResponse.text() };
           }
           
           if (historyRecord && !historyRecord.id.startsWith('temp-')) {
@@ -413,10 +349,8 @@ export async function POST(req: NextRequest) {
                 .from('tryon_history')
                 .update({
                   status: 'failed',
-                  error_message: errorData.detail || errorData.message || `FAL API error: ${falResponse.status}`,
+                  error_message: errorData.detail || `FAL API error: ${falResponse.status}`,
                   processing_time_ms: responseTime,
-                  fal_response: errorData,
-                  model_used: 'kling/v1.5/kolors-virtual-try-on'
                 })
                 .eq('id', historyRecord.id);
             } catch (updateError) {
@@ -426,43 +360,15 @@ export async function POST(req: NextRequest) {
 
           let userErrorMessage: string = ERRORS.FAL.PROCESSING_FAILED;
 
-          if (falResponse.status === 401) {
-            userErrorMessage = 'API authentication failed. Please check API key.';
-          } else if (falResponse.status === 402) {
-            userErrorMessage = 'Insufficient FAL credits. Please add credits to your FAL account.';
-          } else if (falResponse.status === 429) {
-            userErrorMessage = 'Rate limit exceeded. Please try again later.';
-          } else if (falResponse.status === 422) {
-            userErrorMessage = 'Image validation failed. Please check:';
-            userErrorMessage += '\n1. Image format (JPEG, PNG, WebP)';
-            userErrorMessage += '\n2. Image size (max 10MB)';
-            userErrorMessage += '\n3. Image dimensions (min 512x512)';
-            
-            if (errorData?.detail) {
-              userErrorMessage += `\nDetails: ${errorData.detail}`;
-            }
-            if (errorData?.errors) {
-              userErrorMessage += `\nErrors: ${JSON.stringify(errorData.errors)}`;
-            }
+          if (falResponse.status === 422) {
+            userErrorMessage = 'Image validation failed. Please check image format and size.';
           }
           
-          console.log(`[${requestId}] Returning error to client...`);
           return NextResponse.json({
             success: false,
             error: userErrorMessage,
-            details: errorData?.detail || errorData?.message || 'Unknown error',
-            falStatus: falResponse.status,
             code: 'AI_PROCESSING_FAILED',
             responseTime: responseTime,
-            debug: {
-              requestId,
-              devMode: DEV_TEST_MODE,
-              errorDetails: errorData,
-              payloadKeys: Object.keys(falPayload),
-              // Debug için payload'ın başlangıcını da ekleyelim
-              human_image_url_preview: falPayload.human_image_url.substring(0, 50),
-              garment_image_url_preview: falPayload.garment_image_url.substring(0, 50)
-            }
           }, { 
             status: falResponse.status > 400 ? falResponse.status : STATUS.SERVER_ERROR 
           });
@@ -470,8 +376,6 @@ export async function POST(req: NextRequest) {
 
         const falData = await falResponse.json();
         console.log(`[${requestId}] ✅ FAL AI initial response received`);
-        console.log(`[${requestId}] Response type:`, typeof falData);
-        console.log(`[${requestId}] Response keys:`, Object.keys(falData));
         
         // QUEUE RESPONSE İŞLEME
         let pollingAttempts = 0;
@@ -479,11 +383,6 @@ export async function POST(req: NextRequest) {
         
         if (falData.status && (falData.status === "IN_QUEUE" || falData.status === "PROCESSING")) {
           console.log(`[${requestId}] 🕒 FAL AI queue response detected`);
-          console.log(`[${requestId}]   Request ID: ${falData.request_id}`);
-          console.log(`[${requestId}]   Status: ${falData.status}`);
-          console.log(`[${requestId}]   Queue position: ${falData.queue_position || 0}`);
-          console.log(`[${requestId}]   Status URL: ${falData.status_url}`);
-          console.log(`[${requestId}]   Response URL: ${falData.response_url}`);
           
           // History'i queue durumuyla güncelle
           if (historyRecord && !historyRecord.id.startsWith('temp-')) {
@@ -497,17 +396,8 @@ export async function POST(req: NextRequest) {
                   queue_position: falData.queue_position || 0,
                   processing_time_ms: responseTime,
                   result_url: falData.response_url,
-                  metrics: {
-                    queue_info: {
-                      status: falData.status,
-                      queue_position: falData.queue_position || 0,
-                      has_status_url: !!falData.status_url,
-                      has_response_url: !!falData.response_url
-                    }
-                  }
                 })
                 .eq('id', historyRecord.id);
-              console.log(`[${requestId}] ✓ History updated with queue info`);
             } catch (updateError) {
               console.warn(`[${requestId}] Could not update history:`, updateError);
             }
@@ -525,7 +415,6 @@ export async function POST(req: NextRequest) {
               console.log(`[${requestId}] 🔄 Polling attempt ${pollingAttempts}/${maxPollingAttempts}...`);
               
               const statusResult = await checkFalQueueStatus(falData.status_url, FAL_API_KEY);
-              console.log(`[${requestId}]   Polling status: ${statusResult.status}`);
               
               if (statusResult.status === "COMPLETED") {
                 console.log(`[${requestId}] ✅ Queue processing completed!`);
@@ -553,7 +442,7 @@ export async function POST(req: NextRequest) {
           }
           
           if (!finalResult) {
-            console.error(`[${requestId}] ❌ Max polling attempts reached or result fetch failed`);
+            console.error(`[${requestId}] ❌ Max polling attempts reached`);
             
             const queueResponse = {
               success: true,
@@ -563,22 +452,7 @@ export async function POST(req: NextRequest) {
                 statusUrl: falData.status_url,
                 responseUrl: falData.response_url,
                 queuePosition: falData.queue_position || 0,
-                estimatedWaitTime: "10-30 seconds"
               },
-              meta: {
-                message: "Image generation queued successfully",
-                queuePosition: falData.queue_position || 0,
-                responseTime: responseTime
-              },
-              debug: {
-                requestId,
-                falStatus: falData.status,
-                pollingAttempts,
-                queueInfo: {
-                  hasStatusUrl: !!falData.status_url,
-                  hasResponseUrl: !!falData.response_url
-                }
-              }
             };
             
             console.log(`[${requestId}] 🕒 Returning queue info to client`);
@@ -587,13 +461,9 @@ export async function POST(req: NextRequest) {
               headers: {
                 'X-Request-ID': requestId,
                 'X-Queue-Request-ID': falData.request_id,
-                'X-FAL-Status': falData.status,
-                'X-Queue-Position': (falData.queue_position || 0).toString()
               }
             });
           }
-          
-          console.log(`[${requestId}] Final result keys:`, Object.keys(finalResult));
           
         } else {
           console.log(`[${requestId}] ⚡ Immediate response (no queue)`);
@@ -602,34 +472,20 @@ export async function POST(req: NextRequest) {
         
         // FİNAL RESULT İŞLEME
         let resultImageUrl: string | null = null;
-        let imageDetails: any = null;
         
-        console.log(`[${requestId}] Final response sample:`, JSON.stringify(finalResult).substring(0, 500));
-        
-        // API belgelerine göre yanıt formatı: { "image": { "url": "...", ... } }
-        if (finalResult.image && finalResult.image.url) {
+        // URL arama
+        if (finalResult.image?.url) {
           resultImageUrl = finalResult.image.url;
-          imageDetails = finalResult.image;
-          console.log(`[${requestId}] Found URL in image.url`);
-        } else if (finalResult.images && Array.isArray(finalResult.images) && finalResult.images.length > 0) {
+        } else if (finalResult.images?.[0]?.url) {
           resultImageUrl = finalResult.images[0].url;
-          imageDetails = finalResult.images[0];
-          console.log(`[${requestId}] Found URL in images[0].url`);
         } else if (finalResult.url) {
           resultImageUrl = finalResult.url;
-          imageDetails = { url: finalResult.url };
-          console.log(`[${requestId}] Found URL in finalResult.url`);
         } else if (finalResult.output) {
           resultImageUrl = finalResult.output;
-          imageDetails = { url: finalResult.output };
-          console.log(`[${requestId}] Found URL in finalResult.output`);
-        } else if (finalResult.data && finalResult.data.url) {
+        } else if (finalResult.data?.url) {
           resultImageUrl = finalResult.data.url;
-          imageDetails = finalResult.data;
-          console.log(`[${requestId}] Found URL in data.url`);
         } else {
-          console.log(`[${requestId}] 🔍 Searching for URL in response...`);
-          
+          // Recursive search
           function findUrlInObject(obj: any): string | null {
             if (typeof obj === 'string' && obj.startsWith('http')) {
               return obj;
@@ -650,10 +506,6 @@ export async function POST(req: NextRequest) {
           }
           
           resultImageUrl = findUrlInObject(finalResult);
-          if (resultImageUrl) {
-            imageDetails = { url: resultImageUrl, foundBySearch: true };
-            console.log(`[${requestId}] Found URL via recursive search: ${resultImageUrl.substring(0, 100)}...`);
-          }
         }
         
         if (!resultImageUrl) {
@@ -667,8 +519,6 @@ export async function POST(req: NextRequest) {
                   status: 'failed',
                   error_message: 'No image URL found in FAL AI response',
                   processing_time_ms: Date.now() - startTime,
-                  model_used: 'kling/v1.5/kolors-virtual-try-on',
-                  fal_response: finalResult
                 })
                 .eq('id', historyRecord.id);
             } catch (updateError) {
@@ -680,23 +530,16 @@ export async function POST(req: NextRequest) {
             success: false,
             error: 'No image URL found in response',
             code: 'NO_IMAGE_URL',
-            falResponse: finalResult,
-            responseTime: Date.now() - startTime,
-            debug: {
-              requestId,
-              responseKeys: Object.keys(finalResult)
-            }
           }, { 
             status: STATUS.SERVER_ERROR 
           });
         }
 
-        console.log(`[${requestId}] ✅ Final result URL: ${resultImageUrl.substring(0, 100)}...`);
+        console.log(`[${requestId}] ✅ Final result URL found`);
 
         // Update history with final result
         if (historyRecord && !historyRecord.id.startsWith('temp-')) {
           try {
-            console.log(`[${requestId}] Updating history with final result...`);
             await supabase
               .from('tryon_history')
               .update({
@@ -705,19 +548,8 @@ export async function POST(req: NextRequest) {
                 video_url: null,
                 processing_time_ms: Date.now() - startTime,
                 fal_request_id: falData.request_id || `kling_${Date.now()}`,
-                model_used: 'kling/v1.5/kolors-virtual-try-on',
-                metrics: {
-                  inference_time: Date.now() - startTime,
-                  // NOT: API seed parametresini desteklemediği için 'not_specified'
-                  seed: 'not_specified',
-                  model: 'kling/v1.5/kolors-virtual-try-on',
-                  image_details: imageDetails || { url: resultImageUrl },
-                  was_queued: !!falData.status_url,
-                  queue_position: falData.queue_position || 0
-                }
               })
               .eq('id', historyRecord.id);
-            console.log(`[${requestId}] ✓ History updated with final result`);
           } catch (updateError) {
             console.warn(`[${requestId}] Could not update history:`, updateError);
           }
@@ -734,37 +566,11 @@ export async function POST(req: NextRequest) {
             remainingCredits: userCredits - requiredCredits,
             requestId: falData.request_id || `kling_${Date.now()}`,
             historyId: historyRecord?.id || 'temp-id',
-            imageDetails: imageDetails || { url: resultImageUrl },
-            wasQueued: !!falData.status_url,
-            queueInfo: falData.status_url ? {
-              queuePosition: falData.queue_position || 0,
-              statusUrl: falData.status_url,
-              responseUrl: falData.response_url
-            } : null
           },
-          meta: {
-            responseTime: totalTime,
-            creditsUsed: requiredCredits,
-            videoGenerated: false,
-            userTier: userSubscriptionTier,
-            garmentType: options?.category || 'tshirt',
-            model: 'kling/v1.5/kolors-virtual-try-on',
-            seed: 'not_specified', // API seed desteklemiyor
-            processingType: falData.status_url ? 'queued' : 'immediate'
-          },
-          debug: {
-            requestId,
-            devMode: DEV_TEST_MODE,
-            userId: user.id.substring(0, 8),
-            falStatus: 'success',
-            ...(falData.status_url && { pollingAttempts })
-          }
         };
 
         console.log(`[${requestId}] 🎉 TRY-ON COMPLETED SUCCESSFULLY!`);
         console.log(`[${requestId}] Total time: ${totalTime}ms`);
-        console.log(`[${requestId}] Processing type: ${falData.status_url ? 'Queued' : 'Immediate'}`);
-        console.log(`[${requestId}] Image URL: ${resultImageUrl.substring(0, 150)}`);
         console.log(`[${requestId}] =====================================\n`);
 
         return NextResponse.json(result, {
@@ -773,10 +579,6 @@ export async function POST(req: NextRequest) {
             'X-Request-ID': requestId,
             'X-History-ID': historyRecord?.id || 'temp-id',
             'X-Response-Time': totalTime.toString(),
-            'X-Credits-Used': requiredCredits.toString(),
-            'X-Remaining-Credits': (userCredits - requiredCredits).toString(),
-            'X-FAL-Model': 'kling/v1.5/kolors-virtual-try-on',
-            'X-Processing-Type': falData.status_url ? 'queued' : 'immediate'
           }
         });
 
@@ -795,7 +597,6 @@ export async function POST(req: NextRequest) {
                   status: 'failed',
                   error_message: 'Request timeout (90s)',
                   processing_time_ms: responseTime,
-                  model_used: 'kling/v1.5/kolors-virtual-try-on'
                 })
                 .eq('id', historyRecord.id);
             } catch (updateError) {
@@ -809,22 +610,18 @@ export async function POST(req: NextRequest) {
               error: ERRORS.API.TIMEOUT,
               code: 'REQUEST_TIMEOUT',
               responseTime,
-              debug: { requestId, timeout: true }
             },
             { status: STATUS.SERVER_ERROR }
           );
         }
         
         console.error(`[${requestId}] ❌ Fetch error:`, fetchError.message);
-        console.error(`[${requestId}] Fetch error stack:`, fetchError.stack);
         
         return NextResponse.json({
           success: false,
           error: 'Network error connecting to FAL AI',
-          details: fetchError.message,
           code: 'NETWORK_ERROR',
           responseTime,
-          debug: { requestId, errorType: fetchError.name }
         }, { status: STATUS.SERVER_ERROR });
       }
 
@@ -839,7 +636,6 @@ export async function POST(req: NextRequest) {
               status: 'failed',
               error_message: `Image processing error: ${imageProcessingError.message}`,
               processing_time_ms: Date.now() - startTime,
-              model_used: 'kling/v1.5/kolors-virtual-try-on'
             })
             .eq('id', historyRecord.id);
         } catch (updateError) {
@@ -851,9 +647,7 @@ export async function POST(req: NextRequest) {
         { 
           success: false, 
           error: 'Failed to process images',
-          details: imageProcessingError.message,
           code: 'IMAGE_PROCESSING_ERROR',
-          debug: { requestId }
         },
         { status: STATUS.SERVER_ERROR }
       );
@@ -861,11 +655,7 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     const responseTime = Date.now() - startTime;
-    console.error(`\n[${requestId}] ⚡ UNHANDLED ERROR:`);
-    console.error(`[${requestId}] Message:`, err.message);
-    console.error(`[${requestId}] Stack:`, err.stack);
-    console.error(`[${requestId}] Time: ${responseTime}ms`);
-    console.log(`[${requestId}] =====================================\n`);
+    console.error(`\n[${requestId}] ⚡ UNHANDLED ERROR:`, err.message);
 
     return NextResponse.json(
       { 
@@ -873,7 +663,6 @@ export async function POST(req: NextRequest) {
         error: ERRORS.API.SERVER_ERROR,
         code: 'INTERNAL_SERVER_ERROR',
         responseTime,
-        debug: { requestId, error: err.message }
       },
       { status: STATUS.SERVER_ERROR }
     );
