@@ -8,20 +8,39 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Spinner } from '@/components/Spinner';
 import { useToast } from '@/components/Toast';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { generateTryOn, fileToBase64 } from '@/lib/api';
+import { generateTryOnWithMock as generateTryOn, fileToBase64 } from '@/lib/api';
 
 type TryOnResponse = {
+  success?: boolean;
+  data?: {
+    imageUrl?: string;
+    videoUrl?: string | null;
+    generationTimeMs?: number;
+    remainingCredits?: number;
+    requestId?: string;
+    historyId?: string;
+    [key: string]: any;
+  };
   imageUrl?: string;
   videoUrl?: string | null;
   generationTimeMs?: number;
   remainingCredits?: number;
-  [k: string]: any;
+  [key: string]: any;
 };
 
 type HistoryItem = {
   id: string;
   imageUrl?: string;
   videoUrl?: string | null;
+  generationTimeMs?: number;
+  timestamp: number;
+};
+
+type DisplayItem = {
+  id: string;
+  imageUrl?: string;
+  videoUrl?: string | null;
+  generationTimeMs?: number;
   timestamp: number;
 };
 
@@ -50,8 +69,15 @@ async function fetchImageWithCors(url: string): Promise<string> {
     const blob = await proxyResponse.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to convert blob to data URL'));
+        }
+      };
+      reader.onerror = () => reject(new Error('FileReader error'));
       reader.readAsDataURL(blob);
     });
     
@@ -60,53 +86,6 @@ async function fetchImageWithCors(url: string): Promise<string> {
     throw error;
   }
 }
-
-// 🆕 Yeni: Proxy endpoint dosyası oluşturmak için (hızlı çözüm)
-// app/api/proxy/image/route.ts dosyasına bu kodu ekleyin:
-/*
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const imageUrl = searchParams.get('url');
-
-    if (!imageUrl) {
-      return NextResponse.json(
-        { error: 'Image URL is required' },
-        { status: 400 }
-      );
-    }
-
-    const response = await fetch(imageUrl);
-    
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: 'Failed to fetch image' },
-        { status: response.status }
-      );
-    }
-
-    const imageBuffer = await response.arrayBuffer();
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-
-    return new NextResponse(imageBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    });
-  } catch (error) {
-    console.error('Proxy error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-*/
 
 export function TryOnClient() {
   const { t } = useLanguage();
@@ -125,13 +104,43 @@ export function TryOnClient() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
 
-  const [modelImageErrors, setModelImageErrors] = useState('');
-  const [tshirtImageErrors, setTshirtImageErrors] = useState('');
+  const [modelImageErrors, setModelImageErrors] = useState<string>('');
+  const [tshirtImageErrors, setTshirtImageErrors] = useState<string>('');
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
     return history.find((h) => h.id === selectedId) ?? null;
   }, [history, selectedId]);
+
+  // 🆕 Görsel URL'sini doğru şekilde al
+  const display = useMemo((): DisplayItem | null => {
+    if (selected) {
+      return {
+        id: selected.id,
+        imageUrl: selected.imageUrl,
+        videoUrl: selected.videoUrl,
+        generationTimeMs: selected.generationTimeMs,
+        timestamp: selected.timestamp,
+      };
+    }
+    
+    if (result) {
+      // Result'dan imageUrl'i çıkar
+      const imageUrl = result.data?.imageUrl || result.imageUrl;
+      const videoUrl = result.data?.videoUrl || result.videoUrl;
+      const generationTimeMs = result.data?.generationTimeMs || result.generationTimeMs;
+      
+      return {
+        id: 'current',
+        imageUrl: imageUrl || undefined,
+        videoUrl: videoUrl || null,
+        generationTimeMs: typeof generationTimeMs === 'number' ? generationTimeMs : 0,
+        timestamp: Date.now(),
+      };
+    }
+    
+    return null;
+  }, [selected, result]);
 
   // 🆕 Yeni: Görsel URL'si değiştiğinde data URL'ye çevir
   useEffect(() => {
@@ -155,7 +164,7 @@ export function TryOnClient() {
     };
 
     loadImage();
-  }, [display?.imageUrl]);
+  }, [display?.imageUrl, showToast]);
 
   const handleGenerateTryOn = async () => {
     setModelImageErrors('');
@@ -189,30 +198,80 @@ export function TryOnClient() {
         generateVideo,
       });
 
-      setResult(response);
+      console.log('API Response in TryOnClient:', response);
+
+      // Response structure kontrolü
+      let imageUrl: string | undefined = undefined;
+      let videoUrl: string | null | undefined = undefined;
+      let generationTimeMs: number | undefined = undefined;
+      let remainingCredits: number | undefined = undefined;
+      
+      if (response.success && response.data) {
+        // Yeni format: { success: true, data: { imageUrl: ... } }
+        imageUrl = response.data.imageUrl;
+        videoUrl = response.data.videoUrl;
+        generationTimeMs = typeof response.data.generationTimeMs === 'number' 
+          ? response.data.generationTimeMs 
+          : undefined;
+        remainingCredits = typeof response.data.remainingCredits === 'number'
+          ? response.data.remainingCredits
+          : undefined;
+      } else if (response.imageUrl) {
+        // Eski format: { imageUrl: ... }
+        imageUrl = response.imageUrl;
+        videoUrl = response.videoUrl;
+        generationTimeMs = typeof response.generationTimeMs === 'number'
+          ? response.generationTimeMs
+          : undefined;
+        remainingCredits = typeof response.remainingCredits === 'number'
+          ? response.remainingCredits
+          : undefined;
+      }
+      
+      if (!imageUrl) {
+        console.error('No imageUrl found in API response:', response);
+        showToast('API did not return an image URL', 'error');
+        return;
+      }
+
+      const resultData: TryOnResponse = {
+        success: true,
+        data: {
+          imageUrl,
+          videoUrl: videoUrl || null,
+          generationTimeMs: generationTimeMs || 0,
+          remainingCredits: remainingCredits || 0,
+        }
+      };
+
+      setResult(resultData);
 
       const newItem: HistoryItem = {
         id: crypto.randomUUID(),
-        imageUrl: response.imageUrl,
-        videoUrl: response.videoUrl ?? null,
+        imageUrl,
+        videoUrl: videoUrl || null,
+        generationTimeMs: generationTimeMs || 0,
         timestamp: Date.now(),
       };
 
       setHistory((prev) => [newItem, ...prev].slice(0, 6));
 
       showToast(t('tryon.success'), 'success');
-    } catch (e) {
-      console.error(e);
-      showToast('Try-on failed. Please try again.', 'error');
+    } catch (error: unknown) {
+      console.error('Try-on error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`Try-on failed: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
+      setImageLoading(false);
     }
   };
 
-  const display = selected ?? (result ? ({ id: 'current', ...result } as any) : null);
-
   const handleDownload = async () => {
-    if (!display?.imageUrl) return;
+    if (!display?.imageUrl) {
+      showToast('No image available to download', 'error');
+      return;
+    }
     
     try {
       const dataUrl = imageDataUrl || await fetchImageWithCors(display.imageUrl);
@@ -232,8 +291,12 @@ export function TryOnClient() {
   };
 
   // 🆕 Yeni: Görsel yükleme durumu
-  const isImageAvailable = imageDataUrl && !imageLoading;
-  const isImageLoading = imageLoading && display?.imageUrl;
+  const isImageAvailable = !!imageDataUrl && !imageLoading;
+  const isImageLoading = imageLoading && !!display?.imageUrl;
+
+  const generationTimeDisplay = display?.generationTimeMs && typeof display.generationTimeMs === 'number'
+    ? `${(display.generationTimeMs / 1000).toFixed(1)}s` 
+    : 'Fast';
 
   return (
     <div className="space-y-8">
@@ -318,7 +381,7 @@ export function TryOnClient() {
           <ToggleSwitch
             label="Generate Video"
             checked={generateVideo}
-            onChange={setGenerateVideo}
+            onChange={(checked: boolean) => setGenerateVideo(checked)}
           />
           
           <PrimaryButton 
@@ -355,7 +418,7 @@ export function TryOnClient() {
                   <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                     <div className="flex items-center space-x-1">
                       <Clock className="w-4 h-4" />
-                      <span>{display.generationTimeMs ? `${(display.generationTimeMs / 1000).toFixed(1)}s` : 'Fast'}</span>
+                      <span>{generationTimeDisplay}</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Zap className="w-4 h-4" />
@@ -394,11 +457,11 @@ export function TryOnClient() {
             {isImageAvailable ? (
               <div className="relative">
                 <img
-                  src={imageDataUrl}
+                  src={imageDataUrl || ''}
                   alt="Try-on result"
                   className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
                   crossOrigin="anonymous" // 🆕 CORS için önemli
-                  onError={(e) => {
+                  onError={() => {
                     console.error('Image failed to load');
                     showToast('Image failed to load. Please try again.', 'error');
                   }}
